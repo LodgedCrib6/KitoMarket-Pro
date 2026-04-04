@@ -61,10 +61,10 @@ class MinimarketApp(ctk.CTk):
             base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
             if OS == "Windows":
                 self.iconbitmap(os.path.join(base, "KitoLogo.ico"))
-            else:
-                # macOS y Linux usan PNG
+            elif OS == "Linux":
                 icon = ImageTk.PhotoImage(Image.open(os.path.join(base, "KitoLogo.png")).resize((64, 64)))
                 self.iconphoto(True, icon)
+            # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
         except Exception:
             pass
         self.ventana_abierta = None
@@ -216,7 +216,6 @@ class MinimarketApp(ctk.CTk):
 
     def _on_focus_principal(self, event=None):
         if event and event.widget == self:
-            # Si hay una ventana recién abierta, no la cerramos
             if self._proteger_emergente:
                 return
             self.cerrar_emergente_si_existe()
@@ -231,7 +230,7 @@ class MinimarketApp(ctk.CTk):
     def _abrir_emergente(self, titulo, geometry):
         """Crea y devuelve una ventana emergente con protección anti-cierre."""
         self.cerrar_emergente_si_existe()
-        self._proteger_emergente = True  # activar escudo
+        self._proteger_emergente = True
         v = ctk.CTkToplevel(self)
         v.title(titulo)
         v.geometry(geometry)
@@ -239,9 +238,30 @@ class MinimarketApp(ctk.CTk):
         v.lift()
         v.focus_force()
         self.ventana_abierta = v
-        # Desactivar escudo después de 500ms — suficiente para que Windows termine de abrir
         self.after(self._tiempo_proteccion, lambda: setattr(self, '_proteger_emergente', False))
+
+        # macOS no dispara FocusIn en la principal — usamos FocusOut en la emergente
+        if OS == "Darwin":
+            def _on_focusout_emergente(event):
+                # Verificar que el foco fue a la ventana principal y no a un widget hijo
+                self.after(150, lambda: self._cerrar_si_foco_en_principal(v))
+            v.bind("<FocusOut>", _on_focusout_emergente)
+
         return v
+
+    def _cerrar_si_foco_en_principal(self, v):
+        """Cierra la emergente solo si el foco está ahora en la ventana principal."""
+        if self._proteger_emergente:
+            return
+        try:
+            foco = self.focus_get()
+            # Si el foco está en la principal o en un widget de ella, cerrar
+            if foco and str(foco).startswith(str(self)):
+                if self.ventana_abierta and self.ventana_abierta.winfo_exists():
+                    self.ventana_abierta.destroy()
+                    self.ventana_abierta = None
+        except Exception:
+            pass
 
     def confirmar_salida(self):
         if messagebox.askokcancel("Salir", "¿Desea salir de KitoMarket Pro?\n\nCualquier cambio ya se actualizó al servidor."):
