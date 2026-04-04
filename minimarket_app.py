@@ -4,7 +4,10 @@ import sqlite3
 from datetime import datetime
 import os
 import sys
+import platform
 from PIL import Image, ImageTk
+
+OS = platform.system()  # "Windows", "Darwin" (macOS), "Linux"
 
 # --- CONFIGURACIÓN DE DB ---
 def obtener_ruta_db():
@@ -56,13 +59,19 @@ class MinimarketApp(ctk.CTk):
         self.title("KitoMarket Pro")
         try:
             base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-            self.iconbitmap(os.path.join(base, "KitoLogo.ico"))
+            if OS == "Windows":
+                self.iconbitmap(os.path.join(base, "KitoLogo.ico"))
+            else:
+                # macOS y Linux usan PNG
+                icon = ImageTk.PhotoImage(Image.open(os.path.join(base, "KitoLogo.png")).resize((64, 64)))
+                self.iconphoto(True, icon)
         except Exception:
             pass
         self.ventana_abierta = None
         self.codigo_actual = None
         self.historial_data = []
-        self._proteger_emergente = False  # flag que evita cierre accidental
+        self._proteger_emergente = False
+        self._tiempo_proteccion = 500 if OS == "Windows" else 200
 
         # --- Validadores ---
         self._val_num    = self.register(lambda s: s.isdigit() or s == "")
@@ -74,7 +83,13 @@ class MinimarketApp(ctk.CTk):
         self.geometry("1024x768")
         self.minsize(600, 450)
         self.resizable(True, True)
-        self.after(10, lambda: self.state('zoomed'))  # fullscreen al arrancar
+        # Fullscreen según sistema operativo
+        if OS == "Windows":
+            self.after(10, lambda: self.state('zoomed'))
+        elif OS == "Darwin":
+            self.after(10, lambda: self.state('zoomed'))
+        else:  # Linux
+            self.after(10, lambda: self.attributes('-zoomed', True))
 
         self.protocol("WM_DELETE_WINDOW", self.confirmar_salida)
         self.bind("<FocusIn>", self._on_focus_principal)
@@ -225,7 +240,7 @@ class MinimarketApp(ctk.CTk):
         v.focus_force()
         self.ventana_abierta = v
         # Desactivar escudo después de 500ms — suficiente para que Windows termine de abrir
-        self.after(500, lambda: setattr(self, '_proteger_emergente', False))
+        self.after(self._tiempo_proteccion, lambda: setattr(self, '_proteger_emergente', False))
         return v
 
     def confirmar_salida(self):
@@ -409,7 +424,12 @@ if __name__ == "__main__":
     def lanzar():
         splash.destroy()
         app.deiconify()
-        app.state('zoomed')
+        if OS == "Windows":
+            app.state('zoomed')
+        elif OS == "Darwin":
+            app.state('zoomed')
+        else:
+            app.attributes('-zoomed', True)
         app.after(200, app._focus_scan)
     app.after(2500, lanzar)
     app.mainloop()
