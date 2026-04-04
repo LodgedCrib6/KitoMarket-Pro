@@ -229,7 +229,10 @@ class MinimarketApp(ctk.CTk):
 
     def _abrir_emergente(self, titulo, geometry):
         """Crea y devuelve una ventana emergente con protección anti-cierre."""
-        self.cerrar_emergente_si_existe()
+        # Forzar cierre de cualquier ventana anterior, ignorando el flag
+        if self.ventana_abierta and self.ventana_abierta.winfo_exists():
+            self.ventana_abierta.destroy()
+            self.ventana_abierta = None
         self._proteger_emergente = True
         v = ctk.CTkToplevel(self)
         v.title(titulo)
@@ -243,7 +246,6 @@ class MinimarketApp(ctk.CTk):
         # macOS no dispara FocusIn en la principal — usamos FocusOut en la emergente
         if OS == "Darwin":
             def _on_focusout_emergente(event):
-                # Verificar que el foco fue a la ventana principal y no a un widget hijo
                 self.after(150, lambda: self._cerrar_si_foco_en_principal(v))
             v.bind("<FocusOut>", _on_focusout_emergente)
 
