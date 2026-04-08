@@ -12,8 +12,15 @@ OS = platform.system()  # "Windows", "Darwin" (macOS), "Linux"
 # --- CONFIGURACIÓN DE DB ---
 def obtener_ruta_db():
     if getattr(sys, 'frozen', False):
-        ruta_exe = os.path.dirname(sys.executable)
-        base_path = os.path.abspath(os.path.join(ruta_exe, "../../..")) if "Contents/MacOS" in ruta_exe else ruta_exe
+        if OS == "Linux":
+            # En Linux el AppImage corre en directorio de solo lectura
+            # guardar el .db en la carpeta home del usuario
+            base_path = os.path.join(os.path.expanduser("~"), ".kitomarket")
+            os.makedirs(base_path, exist_ok=True)
+        elif "Contents/MacOS" in os.path.dirname(sys.executable):
+            base_path = os.path.abspath(os.path.join(os.path.dirname(sys.executable), "../../.."))
+        else:
+            base_path = os.path.dirname(sys.executable)
     else:
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, "productos.db")
