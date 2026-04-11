@@ -20,21 +20,28 @@ def obtener_ruta_recurso(nombre_archivo):
     # Opción 1: PyInstaller (Windows/macOS)
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         ruta = os.path.join(sys._MEIPASS, nombre_archivo)
+        print(f"🔍 Buscando {nombre_archivo} en _MEIPASS: {ruta}")
         if os.path.exists(ruta):
+            print(f"✅ Encontrado en _MEIPASS")
             return ruta
     
     # Opción 2: Ejecutable empaquetado (AppImage en Linux)
     if getattr(sys, 'frozen', False):
         ruta = os.path.join(os.path.dirname(sys.executable), nombre_archivo)
+        print(f"🔍 Buscando {nombre_archivo} junto al ejecutable: {ruta}")
         if os.path.exists(ruta):
+            print(f"✅ Encontrado junto al ejecutable")
             return ruta
     
     # Opción 3: Desarrollo (mismo directorio del .py)
     ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), nombre_archivo)
+    print(f"🔍 Buscando {nombre_archivo} junto al script: {ruta}")
     if os.path.exists(ruta):
+        print(f"✅ Encontrado junto al script")
         return ruta
     
     # No encontrado
+    print(f"❌ {nombre_archivo} NO ENCONTRADO en ninguna ubicación")
     return None
 
 # --- CONFIGURACIÓN DE DB ---
@@ -126,8 +133,9 @@ class MinimarketApp(ctk.CTk):
             elif OS == "Linux":
                 png_path = obtener_ruta_recurso("KitoLogo.png")
                 if png_path:
-                    icon = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
-                    self.iconphoto(True, icon)
+                    # Guardar referencia para evitar que el garbage collector lo elimine
+                    self._icon_photo = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
+                    self.iconphoto(True, self._icon_photo)
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
         except Exception as e:
             print(f"⚠️ No se pudo configurar el ícono: {e}")
@@ -227,41 +235,58 @@ class MinimarketApp(ctk.CTk):
         self.after(150, lambda: self._escalar_fuentes(self.winfo_width(), self.winfo_height()))
 
     def _mostrar_btn_registrar_ahora(self, cod):
-        if hasattr(self, "btn_reg_ahora"):
-            self.btn_reg_ahora.destroy()
-        self.btn_reg_ahora = ctk.CTkButton(
-            self.visor,
-            text=f"➕ REGISTRAR ESTE PRODUCTO ({cod})",
-            fg_color="#e74c3c", hover_color="#c0392b",
-            width=450, height=60, font=("Arial", 16, "bold"), corner_radius=12,
+        # Limpiar si ya había un botón previo
+        if hasattr(self, '_btn_reg_ahora') and self._btn_reg_ahora.winfo_exists():
+            self._btn_reg_ahora.destroy()
+        self._btn_reg_ahora = ctk.CTkButton(
+            self.visor, text="➕ REGISTRAR ESTE PRODUCTO",
+            fg_color="#2ecc71", hover_color="#27ae60",
+            height=50, font=("Arial", 16, "bold"), corner_radius=10,
             command=lambda: self.abrir_ventana_registro(cod)
         )
-        self.btn_reg_ahora.pack(pady=20)
+        self._btn_reg_ahora.pack(pady=10)
 
     def _ocultar_btn_registrar_ahora(self):
-        if hasattr(self, "btn_reg_ahora"):
-            self.btn_reg_ahora.destroy()
-            del self.btn_reg_ahora
+        if hasattr(self, '_btn_reg_ahora') and self._btn_reg_ahora.winfo_exists():
+            self._btn_reg_ahora.destroy()
 
-    def _abrir_emergente(self, titulo, size="450x450"):
+    def _abrir_emergente(self, titulo, geometry):
+        """Crea y devuelve una ventana emergente con protección anti-cierre."""
+        # Forzar cierre de cualquier ventana anterior, ignorando el flag
         if self.ventana_abierta and self.ventana_abierta.winfo_exists():
-            self.ventana_abierta.lift()
-            return None
+            self.ventana_abierta.destroy()
+            self.ventana_abierta = None
+        self._proteger_emergente = True
         v = ctk.CTkToplevel(self)
         v.title(titulo)
-        v.geometry(size)
-        v.resizable(False, False)
-        v.attributes("-topmost", True)
-        v.grab_set()
+        v.geometry(geometry)
+        v.transient(self)
+        v.lift()
+        v.focus_force()
         self.ventana_abierta = v
-        self._proteger_emergente = True
-        v.after(self._tiempo_proteccion, lambda: setattr(self, '_proteger_emergente', False))
+        self.after(self._tiempo_proteccion, lambda: setattr(self, '_proteger_emergente', False))
 
-        if OS == "Windows":
-            v.bind("<FocusIn>", lambda e: None)
-        else:
-            v.bind("<FocusOut>", lambda e: self._verificar_foco_emergente(v))
+        # macOS no dispara FocusIn en la principal — usamos FocusOut en la emergente
+        if OS == "Darwin":
+            def _on_focusout_emergente(event):
+                self.after(150, lambda: self._cerrar_si_foco_en_principal(v))
+            v.bind("<FocusOut>", _on_focusout_emergente)
+
         return v
+
+    def _cerrar_si_foco_en_principal(self, v):
+        """Cierra la emergente solo si el foco está ahora en la ventana principal."""
+        if self._proteger_emergente:
+            return
+        try:
+            foco = self.focus_get()
+            # Si el foco está en la principal o en un widget de ella, cerrar
+            if foco and str(foco).startswith(str(self)):
+                if self.ventana_abierta and self.ventana_abierta.winfo_exists():
+                    self.ventana_abierta.destroy()
+                    self.ventana_abierta = None
+        except Exception:
+            pass
 
     def _verificar_foco_emergente(self, ventana):
         if self._proteger_emergente:
@@ -274,17 +299,21 @@ class MinimarketApp(ctk.CTk):
             pass
 
     def cerrar_emergente_si_existe(self):
+        if self._proteger_emergente:
+            return
         if self.ventana_abierta and self.ventana_abierta.winfo_exists():
             self.ventana_abierta.destroy()
             self.ventana_abierta = None
 
     def _on_focus_principal(self, event):
-        if not self._proteger_emergente and self.ventana_abierta and self.ventana_abierta.winfo_exists():
-            self.ventana_abierta.destroy()
-            self.ventana_abierta = None
+        if event and event.widget == self:
+            if self._proteger_emergente:
+                return
+            self.cerrar_emergente_si_existe()
 
     def _focus_scan(self):
         self.entry_scan.focus_set()
+        self.entry_scan.focus_force()
 
     def _on_resize(self, event):
         if event.widget == self:
@@ -292,40 +321,54 @@ class MinimarketApp(ctk.CTk):
 
     def _escalar_fuentes(self, w, h):
         escala = min(w / 1024, h / 768)
-        t_guia = max(int(16 * escala), 10)
-        t_scan = max(int(36 * escala), 18)
-        t_nom  = max(int(28 * escala), 14)
-        t_pre  = max(int(140 * escala), 50)
-        t_sem  = max(int(18 * escala), 11)
-        t_bot  = max(int(14 * escala), 9)
+        escala = max(escala, 0.45)
 
+        t_precio   = max(int(230 * escala), 50)
+        t_nombre   = max(int(34  * escala), 14)
+        t_guia     = max(int(18  * escala), 10)
+        t_scan     = max(int(42  * escala), 16)
+        t_semaf    = max(int(20  * escala), 10)
+        t_hist     = max(int(13  * escala), 8)
+        t_bot      = max(int(14  * escala), 9)
+        ancho_scan = max(int(440 * escala), 180)
+        alto_scan  = max(int(70  * escala), 30)
+        wrap       = max(int(w * 0.82), 200)
+
+        self.lbl_precio.configure(font=("Arial", t_precio, "bold"))
+        self.lbl_nombre.configure(font=("Arial", t_nombre, "bold"), wraplength=wrap)
         self.lbl_guia.configure(font=("Arial", t_guia, "bold"))
-        self.entry_scan.configure(font=("Arial", t_scan, "bold"))
-        self.lbl_nombre.configure(font=("Arial", t_nom, "bold"))
-        self.lbl_precio.configure(font=("Arial", t_pre, "bold"))
-        self.lbl_semaforo.configure(font=("Arial", t_sem, "bold"))
+        self.entry_scan.configure(font=("Arial", t_scan, "bold"), width=ancho_scan, height=alto_scan)
+        self.lbl_semaforo.configure(font=("Arial", t_semaf, "bold"))
         self.btn_reg.configure(font=("Arial", t_bot, "bold"))
         self.btn_bus.configure(font=("Arial", t_bot, "bold"))
+
+        for frame in self.hist_frame.winfo_children():
+            for lbl in frame.winfo_children():
+                try:
+                    lbl.configure(font=("Arial", t_hist, "bold"))
+                except:
+                    pass
 
     def confirmar_salida(self):
         if messagebox.askokcancel("Salir", "¿Cerrar KitoMarket Pro?"):
             self.destroy()
 
-    def buscar_barras(self, ev=None):
+    def buscar_barras(self, event=None):
         cod = self.entry_scan.get().strip()
         if not cod: return
+
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute("SELECT nombre, precio, fecha_actualizacion FROM productos WHERE codigo=?", (cod,))
+        c.execute("SELECT codigo, nombre, precio, fecha_actualizacion FROM productos WHERE codigo = ?", (cod,))
         res = c.fetchone(); conn.close()
 
         if res:
-            self.codigo_actual = cod
-            self.lbl_nombre.configure(text=res[0], text_color="black")
-            self.lbl_precio.configure(text=f"$ {res[1]:,}".replace(",", "."))
-            self.gestionar_semaforo(res[2])
-            self.actualizar_historial(res[0], res[1])
+            self.codigo_actual = res[0]
+            self.lbl_nombre.configure(text=str(res[1]).upper(), text_color="black")
+            self.lbl_precio.configure(text=f"${res[2]:,}".replace(",", "."))
+            self.gestionar_semaforo(res[3])
+            self.actualizar_historial(res[1], res[2])
             self.entry_nuevo_precio.delete(0, 'end')
-            self.edit_frame.pack(pady=(10, 0))
+            self.edit_frame.pack(pady=(4, 0))
             self.hist_frame.pack(pady=(6, 0))
             self._ocultar_btn_registrar_ahora()
         else:
