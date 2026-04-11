@@ -13,72 +13,104 @@ OS = platform.system()  # "Windows", "Darwin" (macOS), "Linux"
 def obtener_ruta_recurso(nombre_archivo):
     """
     Busca un recurso (ícono, imagen) en el orden correcto:
-    1. Carpeta de recursos empaquetados (_MEIPASS para PyInstaller)
-    2. Directorio del ejecutable (para AppImage)
-    3. Directorio del script (desarrollo)
+    1. APPDIR (AppImage en Linux)
+    2. _MEIPASS (PyInstaller Windows/macOS)
+    3. Directorio del ejecutable
+    4. Directorio del script (desarrollo)
     """
-    # Opción 1: PyInstaller (Windows/macOS)
+    # Opción 1: AppImage en Linux (usa variable de entorno APPDIR)
+    if 'APPDIR' in os.environ:
+        # Buscar en varias ubicaciones dentro del AppImage
+        posibles_rutas = [
+            os.path.join(os.environ['APPDIR'], nombre_archivo),
+            os.path.join(os.environ['APPDIR'], 'usr', 'bin', nombre_archivo),
+            os.path.join(os.environ['APPDIR'], 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre_archivo.replace('KitoLogo', 'kitomarket')),
+        ]
+        for ruta in posibles_rutas:
+            if os.path.exists(ruta):
+                print(f"🔍 Recurso encontrado: {ruta}")
+                return ruta
+    
+    # Opción 2: PyInstaller (Windows/macOS)
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         ruta = os.path.join(sys._MEIPASS, nombre_archivo)
-        print(f"🔍 Buscando {nombre_archivo} en _MEIPASS: {ruta}")
         if os.path.exists(ruta):
-            print(f"✅ Encontrado en _MEIPASS")
+            print(f"🔍 Recurso encontrado (PyInstaller): {ruta}")
             return ruta
     
-    # Opción 2: Ejecutable empaquetado (AppImage en Linux)
+    # Opción 3: Ejecutable empaquetado genérico
     if getattr(sys, 'frozen', False):
         ruta = os.path.join(os.path.dirname(sys.executable), nombre_archivo)
-        print(f"🔍 Buscando {nombre_archivo} junto al ejecutable: {ruta}")
         if os.path.exists(ruta):
-            print(f"✅ Encontrado junto al ejecutable")
+            print(f"🔍 Recurso encontrado (ejecutable): {ruta}")
             return ruta
     
-    # Opción 3: Desarrollo (mismo directorio del .py)
+    # Opción 4: Desarrollo (mismo directorio del .py)
     ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), nombre_archivo)
-    print(f"🔍 Buscando {nombre_archivo} junto al script: {ruta}")
     if os.path.exists(ruta):
-        print(f"✅ Encontrado junto al script")
+        print(f"🔍 Recurso encontrado (desarrollo): {ruta}")
         return ruta
     
     # No encontrado
-    print(f"❌ {nombre_archivo} NO ENCONTRADO en ninguna ubicación")
+    print(f"❌ Recurso NO encontrado: {nombre_archivo}")
+    print(f"   APPDIR: {os.environ.get('APPDIR', 'N/A')}")
+    print(f"   _MEIPASS: {getattr(sys, '_MEIPASS', 'N/A')}")
+    print(f"   executable dir: {os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else 'N/A'}")
     return None
 
 # --- CONFIGURACIÓN DE DB ---
 def obtener_ruta_db():
     """
     Estrategia inteligente para productos.db:
-    1. Intentar usar la carpeta del ejecutable (portabilidad)
-    2. Si no tiene permisos de escritura, usar ~/.kitomarket/
+    1. AppImage: junto al archivo .AppImage (usando variable APPIMAGE)
+    2. Otros: junto al ejecutable
+    3. Fallback: ~/.kitomarket/ si no hay permisos de escritura
     """
     if getattr(sys, 'frozen', False):
         # Aplicación empaquetada
-        if "Contents/MacOS" in os.path.dirname(sys.executable):
+        
+        # Caso especial: AppImage en Linux
+        if 'APPIMAGE' in os.environ:
+            # APPIMAGE contiene la ruta completa al .AppImage original
+            # Ejemplo: /home/user/Descargas/KitoMarketPro.AppImage
+            base_path = os.path.dirname(os.environ['APPIMAGE'])
+            db_path = os.path.join(base_path, "productos.db")
+            print(f"📦 AppImage detectado")
+            print(f"   APPIMAGE: {os.environ['APPIMAGE']}")
+            print(f"   Base path: {base_path}")
+            print(f"   DB path: {db_path}")
+        elif "Contents/MacOS" in os.path.dirname(sys.executable):
             # macOS .app bundle
             base_path = os.path.abspath(os.path.join(os.path.dirname(sys.executable), "../../.."))
+            db_path = os.path.join(base_path, "productos.db")
         else:
-            # Windows .exe o Linux AppImage
+            # Windows .exe
             base_path = os.path.dirname(sys.executable)
-        
-        db_path = os.path.join(base_path, "productos.db")
+            db_path = os.path.join(base_path, "productos.db")
         
         # Verificar si podemos escribir en esa ubicación
         try:
             # Intentar crear/abrir el archivo para verificar permisos
             test_conn = sqlite3.connect(db_path)
             test_conn.close()
+            print(f"✅ DB con permisos de escritura: {db_path}")
             return db_path
-        except (PermissionError, sqlite3.OperationalError):
+        except (PermissionError, sqlite3.OperationalError) as e:
             # No tenemos permisos - usar carpeta home
+            print(f"⚠️ Sin permisos en {db_path}: {e}")
             pass
     else:
         # Modo desarrollo
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "productos.db")
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "productos.db")
+        print(f"🔧 Modo desarrollo: {db_path}")
+        return db_path
     
     # Fallback: carpeta en home del usuario
     base_path = os.path.join(os.path.expanduser("~"), ".kitomarket")
     os.makedirs(base_path, exist_ok=True)
-    return os.path.join(base_path, "productos.db")
+    db_path = os.path.join(base_path, "productos.db")
+    print(f"🏠 Usando carpeta home (fallback): {db_path}")
+    return db_path
 
 DB_PATH = obtener_ruta_db()
 
@@ -111,7 +143,7 @@ class SplashScreen(ctk.CTkToplevel):
             else:
                 raise FileNotFoundError("Logo no encontrado")
         except Exception as e:
-            print(f"⚠️ No se pudo cargar el logo: {e}")
+            print(f"⚠️ No se pudo cargar el logo del splash: {e}")
             ctk.CTkLabel(self, text="🏪", font=("Arial", 80)).pack(pady=(40, 10))
 
         ctk.CTkLabel(self, text="KitoMarket Pro", font=("Arial", 22, "bold"), text_color="#2ecc71").pack()
@@ -123,8 +155,6 @@ class MinimarketApp(ctk.CTk):
         super().__init__()
 
         self.title("KitoMarket Pro")
-        
-        # Configurar ícono de la ventana
         try:
             if OS == "Windows":
                 ico_path = obtener_ruta_recurso("KitoLogo.ico")
@@ -133,13 +163,11 @@ class MinimarketApp(ctk.CTk):
             elif OS == "Linux":
                 png_path = obtener_ruta_recurso("KitoLogo.png")
                 if png_path:
-                    # Guardar referencia para evitar que el garbage collector lo elimine
-                    self._icon_photo = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
-                    self.iconphoto(True, self._icon_photo)
+                    icon = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
+                    self.iconphoto(True, icon)
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
         except Exception as e:
-            print(f"⚠️ No se pudo configurar el ícono: {e}")
-        
+            print(f"⚠️ No se pudo configurar el ícono de la ventana: {e}")
         self.ventana_abierta = None
         self.codigo_actual = None
         self.historial_data = []
@@ -250,6 +278,56 @@ class MinimarketApp(ctk.CTk):
         if hasattr(self, '_btn_reg_ahora') and self._btn_reg_ahora.winfo_exists():
             self._btn_reg_ahora.destroy()
 
+    def _focus_scan(self):
+        self.entry_scan.focus_set()
+        self.entry_scan.focus_force()
+
+    # --- ESCALADO RESPONSIVO ---
+
+    def _on_resize(self, event=None):
+        if event and event.widget == self:
+            self._escalar_fuentes(event.width, event.height)
+
+    def _escalar_fuentes(self, w, h):
+        escala = min(w / 1024, h / 768)
+        escala = max(escala, 0.45)
+
+        t_precio   = max(int(230 * escala), 50)  # +40% sobre 165
+        t_nombre   = max(int(34  * escala), 14)
+        t_guia     = max(int(18  * escala), 10)
+        t_scan     = max(int(42  * escala), 16)
+        t_semaf    = max(int(20  * escala), 10)
+        t_hist     = max(int(13  * escala), 8)
+        ancho_scan = max(int(440 * escala), 180)
+        alto_scan  = max(int(70  * escala), 30)
+        wrap       = max(int(w * 0.82), 200)
+
+        self.lbl_precio.configure(font=("Arial", t_precio, "bold"))
+        self.lbl_nombre.configure(font=("Arial", t_nombre, "bold"), wraplength=wrap)
+        self.lbl_guia.configure(font=("Arial", t_guia, "bold"))
+        self.entry_scan.configure(font=("Arial", t_scan, "bold"), width=ancho_scan, height=alto_scan)
+        self.lbl_semaforo.configure(font=("Arial", t_semaf, "bold"))
+
+        for frame in self.hist_frame.winfo_children():
+            for lbl in frame.winfo_children():
+                try: lbl.configure(font=("Arial", t_hist, "bold"))
+                except: pass
+
+    # --- FUNCIONES DE CONTROL ---
+
+    def _on_focus_principal(self, event=None):
+        if event and event.widget == self:
+            if self._proteger_emergente:
+                return
+            self.cerrar_emergente_si_existe()
+
+    def cerrar_emergente_si_existe(self):
+        if self._proteger_emergente:
+            return
+        if self.ventana_abierta and self.ventana_abierta.winfo_exists():
+            self.ventana_abierta.destroy()
+            self.ventana_abierta = None
+
     def _abrir_emergente(self, titulo, geometry):
         """Crea y devuelve una ventana emergente con protección anti-cierre."""
         # Forzar cierre de cualquier ventana anterior, ignorando el flag
@@ -288,69 +366,8 @@ class MinimarketApp(ctk.CTk):
         except Exception:
             pass
 
-    def _verificar_foco_emergente(self, ventana):
-        if self._proteger_emergente:
-            return
-        try:
-            if ventana.winfo_exists():
-                ventana.destroy()
-                self.ventana_abierta = None
-        except:
-            pass
-
-    def cerrar_emergente_si_existe(self):
-        if self._proteger_emergente:
-            return
-        if self.ventana_abierta and self.ventana_abierta.winfo_exists():
-            self.ventana_abierta.destroy()
-            self.ventana_abierta = None
-
-    def _on_focus_principal(self, event):
-        if event and event.widget == self:
-            if self._proteger_emergente:
-                return
-            self.cerrar_emergente_si_existe()
-
-    def _focus_scan(self):
-        self.entry_scan.focus_set()
-        self.entry_scan.focus_force()
-
-    def _on_resize(self, event):
-        if event.widget == self:
-            self._escalar_fuentes(event.width, event.height)
-
-    def _escalar_fuentes(self, w, h):
-        escala = min(w / 1024, h / 768)
-        escala = max(escala, 0.45)
-
-        t_precio   = max(int(230 * escala), 50)
-        t_nombre   = max(int(34  * escala), 14)
-        t_guia     = max(int(18  * escala), 10)
-        t_scan     = max(int(42  * escala), 16)
-        t_semaf    = max(int(20  * escala), 10)
-        t_hist     = max(int(13  * escala), 8)
-        t_bot      = max(int(14  * escala), 9)
-        ancho_scan = max(int(440 * escala), 180)
-        alto_scan  = max(int(70  * escala), 30)
-        wrap       = max(int(w * 0.82), 200)
-
-        self.lbl_precio.configure(font=("Arial", t_precio, "bold"))
-        self.lbl_nombre.configure(font=("Arial", t_nombre, "bold"), wraplength=wrap)
-        self.lbl_guia.configure(font=("Arial", t_guia, "bold"))
-        self.entry_scan.configure(font=("Arial", t_scan, "bold"), width=ancho_scan, height=alto_scan)
-        self.lbl_semaforo.configure(font=("Arial", t_semaf, "bold"))
-        self.btn_reg.configure(font=("Arial", t_bot, "bold"))
-        self.btn_bus.configure(font=("Arial", t_bot, "bold"))
-
-        for frame in self.hist_frame.winfo_children():
-            for lbl in frame.winfo_children():
-                try:
-                    lbl.configure(font=("Arial", t_hist, "bold"))
-                except:
-                    pass
-
     def confirmar_salida(self):
-        if messagebox.askokcancel("Salir", "¿Cerrar KitoMarket Pro?"):
+        if messagebox.askokcancel("Salir", "¿Desea salir de KitoMarket Pro?\n\nCualquier cambio ya se actualizó al servidor."):
             self.destroy()
 
     def buscar_barras(self, event=None):
@@ -363,7 +380,7 @@ class MinimarketApp(ctk.CTk):
 
         if res:
             self.codigo_actual = res[0]
-            self.lbl_nombre.configure(text=str(res[1]).upper(), text_color="black")
+            self.lbl_nombre.configure(text=str(res[1]).upper(), text_color=("#111", "#EEE"))
             self.lbl_precio.configure(text=f"${res[2]:,}".replace(",", "."))
             self.gestionar_semaforo(res[3])
             self.actualizar_historial(res[1], res[2])
@@ -522,11 +539,11 @@ class MinimarketApp(ctk.CTk):
 if __name__ == "__main__":
     # Mostrar ruta de la base de datos en consola (útil para debug)
     print(f"📁 Base de datos: {DB_PATH}")
+    print(f"🖼️  Logo path: {obtener_ruta_recurso('KitoLogo.png')}")
     
     conn = sqlite3.connect(DB_PATH)
     conn.execute("CREATE TABLE IF NOT EXISTS productos (codigo TEXT PRIMARY KEY, nombre TEXT, precio INTEGER, fecha_actualizacion TEXT)")
     conn.close()
-    
     app = MinimarketApp()
     app.withdraw()  # ocultar app principal mientras carga
     splash = SplashScreen(app)
