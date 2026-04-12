@@ -20,16 +20,24 @@ def obtener_ruta_recurso(nombre_archivo):
     """
     # Opción 1: AppImage en Linux (usa variable de entorno APPDIR)
     if 'APPDIR' in os.environ:
-        # Buscar en varias ubicaciones dentro del AppImage
+        appdir = os.environ['APPDIR']
         posibles_rutas = [
-            os.path.join(os.environ['APPDIR'], nombre_archivo),
-            os.path.join(os.environ['APPDIR'], 'usr', 'bin', nombre_archivo),
-            os.path.join(os.environ['APPDIR'], 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre_archivo.replace('KitoLogo', 'kitomarket')),
+            os.path.join(appdir, nombre_archivo),  # APPDIR/KitoLogo.png
+            os.path.join(appdir, 'usr', 'bin', nombre_archivo),
+            os.path.join(appdir, 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre_archivo),
         ]
         for ruta in posibles_rutas:
             if os.path.exists(ruta):
                 print(f"🔍 Recurso encontrado: {ruta}")
                 return ruta
+        
+        # Debug si no se encontró
+        print(f"❌ Recurso NO encontrado: {nombre_archivo}")
+        print(f"   APPDIR: {appdir}")
+        print(f"   Buscado en:")
+        for ruta in posibles_rutas:
+            print(f"     - {ruta}")
+        return None
     
     # Opción 2: PyInstaller (Windows/macOS)
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -53,9 +61,6 @@ def obtener_ruta_recurso(nombre_archivo):
     
     # No encontrado
     print(f"❌ Recurso NO encontrado: {nombre_archivo}")
-    print(f"   APPDIR: {os.environ.get('APPDIR', 'N/A')}")
-    print(f"   _MEIPASS: {getattr(sys, '_MEIPASS', 'N/A')}")
-    print(f"   executable dir: {os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else 'N/A'}")
     return None
 
 # --- CONFIGURACIÓN DE DB ---
