@@ -64,64 +64,74 @@ jobs:
           name: KitoMarketPro-macOS
           path: dist/
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+ build-linux:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
 
-      - name: Instalar dependencias del sistema
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk fuse libfuse2 file
+    - name: Instalar dependencias del sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk fuse libfuse2 file desktop-file-utils
 
-      - name: Instalar dependencias Python
-        run: pip install customtkinter pyinstaller pillow
+    - name: Instalar dependencias Python
+      run: pip install customtkinter pyinstaller pillow
 
-      - name: Build binario
-        run: >
-          pyinstaller --onefile --windowed
-          --add-data "KitoLogo.png:."
-          --name KitoMarketPro
-          minimarket_app.py
+    - name: Build binario
+      run: |
+        pyinstaller --onefile --windowed \
+          --add-data "KitoLogo.png:." \
+          --name KitoMarketPro minimarket_app.py
 
-      - name: Crear AppImage
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+    - name: Crear AppDir
+      run: |
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-          cp dist/KitoMarketPro AppDir/usr/bin/
-          cp KitoLogo.png AppDir/.DirIcon
-          cp KitoLogo.png AppDir/KitoMarketPro.png
-          cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/KitoMarketPro.png
+        cp dist/KitoMarketPro AppDir/usr/bin/
 
-          echo "[Desktop Entry]" > AppDir/KitoMarketPro.desktop
-          echo "Type=Application" >> AppDir/KitoMarketPro.desktop
-          echo "Name=KitoMarket Pro" >> AppDir/KitoMarketPro.desktop
-          echo "Exec=KitoMarketPro" >> AppDir/KitoMarketPro.desktop
-          echo "Icon=KitoMarketPro" >> AppDir/KitoMarketPro.desktop
-          echo "StartupWMClass=KitoMarketPro" >> AppDir/KitoMarketPro.desktop
-          echo "Terminal=false" >> AppDir/KitoMarketPro.desktop
-          echo "Categories=Office;" >> AppDir/KitoMarketPro.desktop
+        # ICONOS
+        cp KitoLogo.png AppDir/.DirIcon
+        cp KitoLogo.png AppDir/KitoMarketPro.png
+        cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/KitoMarketPro.png
 
-          echo '#!/bin/bash' > AppDir/AppRun
-          echo 'SELF=$(readlink -f "$0")' >> AppDir/AppRun
-          echo 'HERE=${SELF%/*}' >> AppDir/AppRun
-          echo 'export PATH="${HERE}/usr/bin/:${PATH}"' >> AppDir/AppRun
-          echo 'exec "${HERE}/usr/bin/KitoMarketPro" "$@"' >> AppDir/AppRun
+        # DESKTOP (SIN INDENTACIÓN = CRÍTICO)
+        cat > AppDir/KitoMarketPro.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=KitoMarket Pro
+Exec=KitoMarketPro
+Icon=KitoMarketPro
+StartupWMClass=KitoMarketPro
+Terminal=false
+Categories=Office;
+EOF
 
-          chmod +x AppDir/AppRun
+        # VALIDAR (esto evita crash silencioso)
+        desktop-file-validate AppDir/KitoMarketPro.desktop
 
-      - name: Build AppImage
-        run: |
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          ./appimagetool-x86_64.AppImage AppDir KitoMarketPro.AppImage
+        # APPRUN
+        cat > AppDir/AppRun <<EOF
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/KitoMarketPro" "$@"
+EOF
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KitoMarketPro-Linux
-          path: KitoMarketPro.AppImage
+        chmod +x AppDir/AppRun
+
+    - name: Build AppImage
+      run: |
+        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        chmod +x appimagetool-x86_64.AppImage
+
+        export ARCH=x86_64
+        ./appimagetool-x86_64.AppImage AppDir KitoMarketPro.AppImage
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: KitoMarketPro-Linux
+        path: KitoMarketPro.AppImage
