@@ -21,22 +21,28 @@ def obtener_ruta_recurso(nombre_archivo):
     # Opción 1: AppImage en Linux (usa variable de entorno APPDIR)
     if 'APPDIR' in os.environ:
         appdir = os.environ['APPDIR']
-        posibles_rutas = [
-            os.path.join(appdir, nombre_archivo),  # APPDIR/KitoLogo.png
-            os.path.join(appdir, 'usr', 'bin', nombre_archivo),
-            os.path.join(appdir, 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre_archivo),
-        ]
-        for ruta in posibles_rutas:
-            if os.path.exists(ruta):
-                print(f"🔍 Recurso encontrado: {ruta}")
-                return ruta
+        
+        # En AppImage, el ícono está como "kitomarket.png" en múltiples ubicaciones
+        if nombre_archivo == 'KitoLogo.png':
+            nombres_buscar = ['kitomarket.png', 'KitoLogo.png', '.DirIcon']
+        else:
+            nombres_buscar = [nombre_archivo]
+        
+        for nombre in nombres_buscar:
+            posibles_rutas = [
+                os.path.join(appdir, nombre),
+                os.path.join(appdir, 'usr', 'share', 'pixmaps', nombre),
+                os.path.join(appdir, 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre),
+            ]
+            for ruta in posibles_rutas:
+                if os.path.exists(ruta):
+                    print(f"🔍 Recurso encontrado: {ruta}")
+                    return ruta
         
         # Debug si no se encontró
         print(f"❌ Recurso NO encontrado: {nombre_archivo}")
         print(f"   APPDIR: {appdir}")
-        print(f"   Buscado en:")
-        for ruta in posibles_rutas:
-            print(f"     - {ruta}")
+        print(f"   Buscado como: {nombres_buscar}")
         return None
     
     # Opción 2: PyInstaller (Windows/macOS)
@@ -162,14 +168,35 @@ class MinimarketApp(ctk.CTk):
         self.title("KitoMarket Pro")
         try:
             if OS == "Windows":
+                # En Windows usamos doble método para asegurar que el ícono aparezca
+                # tanto en el archivo .exe como en la barra de tareas
                 ico_path = obtener_ruta_recurso("KitoLogo.ico")
+                png_path = obtener_ruta_recurso("KitoLogo.png")
+                
                 if ico_path:
                     self.iconbitmap(ico_path)
+                    print(f"✅ Ícono .ico configurado: {ico_path}")
+                
+                # CustomTkinter en Windows a veces no muestra bien solo con .ico
+                # Agregamos también .png como fallback para la barra de tareas
+                if png_path:
+                    try:
+                        icon_img = Image.open(png_path)
+                        # Windows necesita múltiples tamaños
+                        icon_photo = ImageTk.PhotoImage(icon_img.resize((32, 32), Image.LANCZOS))
+                        self.iconphoto(True, icon_photo)
+                        # Guardar referencia para que no se borre de memoria
+                        self._icon_ref = icon_photo
+                        print(f"✅ Ícono .png configurado: {png_path}")
+                    except Exception as e:
+                        print(f"⚠️ No se pudo cargar .png: {e}")
+                        
             elif OS == "Linux":
                 png_path = obtener_ruta_recurso("KitoLogo.png")
                 if png_path:
                     icon = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
                     self.iconphoto(True, icon)
+                    self._icon_ref = icon
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
         except Exception as e:
             print(f"⚠️ No se pudo configurar el ícono de la ventana: {e}")
