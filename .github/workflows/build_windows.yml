@@ -19,8 +19,16 @@ jobs:
           python-version: "3.11"
       - name: Instalar dependencias
         run: pip install customtkinter pyinstaller pillow
+      - name: Verificar archivos de recursos
+        run: |
+          dir KitoLogo.*
+          echo "Archivos de recursos verificados"
       - name: Construir EXE
-        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro minimarket_app.py
+        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro --win-private-assemblies --version-file version_info.txt minimarket_app.py
+        continue-on-error: true
+      - name: Construir EXE (sin version-file si falla)
+        if: failure()
+        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro --win-private-assemblies minimarket_app.py
       - uses: actions/upload-artifact@v4
         with:
           name: KitoMarketPro-Windows
@@ -85,26 +93,35 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/pixmaps
           cp dist/KitoMarketPro AppDir/usr/bin/
-          cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/KitoLogo.png
-          cp KitoLogo.png AppDir/KitoLogo.png
+          
+          # Copiar ícono en múltiples ubicaciones para máxima compatibilidad
+          cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/kitomarket.png
+          cp KitoLogo.png AppDir/usr/share/pixmaps/kitomarket.png
+          cp KitoLogo.png AppDir/kitomarket.png
+          cp KitoLogo.png AppDir/.DirIcon
 
           # Desktop entry
           cat > AppDir/kitomarket.desktop << 'DESKTOP'
           [Desktop Entry]
           Name=KitoMarket Pro
           Exec=KitoMarketPro
-          Icon=KitoLogo
+          Icon=kitomarket
           Type=Application
           Categories=Office;
           DESKTOP
 
-          # AppRun
+          # AppRun mejorado con configuración de ícono
           cat > AppDir/AppRun << 'APPRUN'
           #!/bin/bash
           SELF=$(readlink -f "$0")
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin/:${PATH}"
+          
+          # Configurar ícono para que aparezca en barra de tareas
+          export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+          
           exec "${HERE}/usr/bin/KitoMarketPro" "$@"
           APPRUN
           chmod +x AppDir/AppRun
