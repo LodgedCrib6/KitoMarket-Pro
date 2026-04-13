@@ -19,16 +19,8 @@ jobs:
           python-version: "3.11"
       - name: Instalar dependencias
         run: pip install customtkinter pyinstaller pillow
-      - name: Verificar archivos de recursos
-        run: |
-          dir KitoLogo.*
-          echo "Archivos de recursos verificados"
       - name: Construir EXE
-        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro --win-private-assemblies --version-file version_info.txt minimarket_app.py
-        continue-on-error: true
-      - name: Construir EXE (sin version-file si falla)
-        if: failure()
-        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro --win-private-assemblies minimarket_app.py
+        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro minimarket_app.py
       - uses: actions/upload-artifact@v4
         with:
           name: KitoMarketPro-Windows
@@ -43,21 +35,8 @@ jobs:
           python-version: "3.11"
       - name: Instalar dependencias
         run: pip install customtkinter pyinstaller pillow
-      - name: Convertir PNG a ICNS
-        run: |
-          mkdir -p KitoLogo.iconset
-          sips -z 16 16     KitoLogo.png --out KitoLogo.iconset/icon_16x16.png
-          sips -z 32 32     KitoLogo.png --out KitoLogo.iconset/icon_16x16@2x.png
-          sips -z 32 32     KitoLogo.png --out KitoLogo.iconset/icon_32x32.png
-          sips -z 64 64     KitoLogo.png --out KitoLogo.iconset/icon_32x32@2x.png
-          sips -z 128 128   KitoLogo.png --out KitoLogo.iconset/icon_128x128.png
-          sips -z 256 256   KitoLogo.png --out KitoLogo.iconset/icon_128x128@2x.png
-          sips -z 256 256   KitoLogo.png --out KitoLogo.iconset/icon_256x256.png
-          sips -z 512 512   KitoLogo.png --out KitoLogo.iconset/icon_256x256@2x.png
-          sips -z 512 512   KitoLogo.png --out KitoLogo.iconset/icon_512x512.png
-          iconutil -c icns KitoLogo.iconset -o KitoLogo.icns
       - name: Construir .app
-        run: pyinstaller --windowed --icon=KitoLogo.icns --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
+        run: pyinstaller --windowed --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
       - name: Empaquetar en DMG
         run: |
           brew install create-dmg
@@ -93,15 +72,9 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          mkdir -p AppDir/usr/share/pixmaps
           cp dist/KitoMarketPro AppDir/usr/bin/
-          
-          # Copiar ícono en múltiples ubicaciones para máxima compatibilidad
           cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/kitomarket.png
-          cp KitoLogo.png AppDir/usr/share/pixmaps/kitomarket.png
           cp KitoLogo.png AppDir/kitomarket.png
-          cp KitoLogo.png AppDir/.DirIcon
-
           # Desktop entry
           cat > AppDir/kitomarket.desktop << 'DESKTOP'
           [Desktop Entry]
@@ -111,27 +84,20 @@ jobs:
           Type=Application
           Categories=Office;
           DESKTOP
-
-          # AppRun mejorado con configuración de ícono
+          # AppRun
           cat > AppDir/AppRun << 'APPRUN'
           #!/bin/bash
           SELF=$(readlink -f "$0")
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin/:${PATH}"
-          
-          # Configurar ícono para que aparezca en barra de tareas
-          export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-          
           exec "${HERE}/usr/bin/KitoMarketPro" "$@"
           APPRUN
           chmod +x AppDir/AppRun
-
       - name: Descargar y ejecutar appimagetool
         run: |
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir KitoMarketPro.AppImage
-
       - uses: actions/upload-artifact@v4
         with:
           name: KitoMarketPro-Linux
