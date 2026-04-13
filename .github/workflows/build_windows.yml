@@ -100,24 +100,11 @@ jobs:
           cp KitoLogo.png AppDir/KitoMarketPro.png
           cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/KitoMarketPro.png
 
-          cat > AppDir/KitoMarketPro.desktop <<EOF
-[Desktop Entry]
-Type=Application
-Name=KitoMarket Pro
-Exec=KitoMarketPro
-Icon=KitoMarketPro
-StartupWMClass=KitoMarketPro
-Terminal=false
-Categories=Office;
-EOF
+          printf "[Desktop Entry]\nType=Application\nName=KitoMarket Pro\nExec=KitoMarketPro\nIcon=KitoMarketPro\nStartupWMClass=KitoMarketPro\nTerminal=false\nCategories=Office;\n" > AppDir/KitoMarketPro.desktop
 
           desktop-file-validate AppDir/KitoMarketPro.desktop
 
-          cat > AppDir/AppRun <<EOF
-#!/bin/bash
-HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/bin/KitoMarketPro" "$@"
-EOF
+          printf "#!/bin/bash\nHERE=\"\$(dirname \"\$(readlink -f \"$0\")\")\"\nexec \"\$HERE/usr/bin/KitoMarketPro\" \"\$@\"\n" > AppDir/AppRun
 
           chmod +x AppDir/AppRun
 
