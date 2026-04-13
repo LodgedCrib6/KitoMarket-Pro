@@ -1,104 +1,67 @@
-name: Build KitoMarket - All Platforms
+build-linux:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    - name: Instalar dependencias del sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk fuse libfuse2 file
 
-jobs:
+    - name: Instalar dependencias Python
+      run: pip install customtkinter pyinstaller pillow
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Instalar dependencias
-        run: pip install customtkinter pyinstaller pillow
-      - name: Construir EXE
-        run: pyinstaller --onefile --windowed --icon=KitoLogo.ico --add-data "KitoLogo.ico;." --add-data "KitoLogo.png;." --name KitoMarketPro minimarket_app.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KitoMarketPro-Windows
-          path: dist/KitoMarketPro.exe
+    - name: Construir binario
+      run: |
+        pyinstaller --onefile --windowed \
+        --add-data "KitoLogo.png:." \
+        --add-data "KitoLogo.ico:." \
+        --name KitoMarketPro minimarket_app.py
 
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Instalar dependencias
-        run: pip install customtkinter pyinstaller pillow
-      - name: Construir .app
-        run: pyinstaller --windowed --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
-      - name: Empaquetar en DMG
-        run: |
-          brew install create-dmg
-          create-dmg \
-            --volname "KitoMarket Pro" \
-            --window-size 500 300 \
-            --icon-size 100 \
-            --icon "KitoMarketPro.app" 120 150 \
-            --app-drop-link 380 150 \
-            "KitoMarketPro.dmg" \
-            "dist/"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KitoMarketPro-macOS
-          path: KitoMarketPro.dmg
+    - name: Crear AppImage CORRECTO
+      run: |
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Instalar dependencias del sistema
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk fuse libfuse2 file
-      - name: Instalar dependencias Python
-        run: pip install customtkinter pyinstaller pillow
-      - name: Construir binario
-        run: pyinstaller --onefile --windowed --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
-      - name: Crear estructura AppImage
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp dist/KitoMarketPro AppDir/usr/bin/
-          cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/kitomarket.png
-          cp KitoLogo.png AppDir/kitomarket.png
-          # Desktop entry
-          cat > AppDir/kitomarket.desktop << 'DESKTOP'
-          [Desktop Entry]
-          Name=KitoMarket Pro
-          Exec=KitoMarketPro
-          Icon=kitomarket
-          Type=Application
-          Categories=Office;
-          DESKTOP
-          # AppRun
-          cat > AppDir/AppRun << 'APPRUN'
-          #!/bin/bash
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin/:${PATH}"
-          exec "${HERE}/usr/bin/KitoMarketPro" "$@"
-          APPRUN
-          chmod +x AppDir/AppRun
-      - name: Descargar y ejecutar appimagetool
-        run: |
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir KitoMarketPro.AppImage
-      - uses: actions/upload-artifact@v4
-        with:
-          name: KitoMarketPro-Linux
-          path: KitoMarketPro.AppImage
+        # Binario
+        cp dist/KitoMarketPro AppDir/usr/bin/
+
+        # ICONOS (CLAVE)
+        cp KitoLogo.png AppDir/.DirIcon
+        cp KitoLogo.png AppDir/KitoMarketPro.png
+        cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/KitoMarketPro.png
+
+        # Desktop entry (NOMBRE DE ICONO DEBE COINCIDIR)
+        cat > AppDir/KitoMarketPro.desktop << 'EOF'
+[Desktop Entry]
+Name=KitoMarket Pro
+Exec=KitoMarketPro
+Icon=KitoMarketPro
+Type=Application
+Categories=Office;
+EOF
+
+        # AppRun
+        cat > AppDir/AppRun << 'EOF'
+#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE=${SELF%/*}
+export PATH="${HERE}/usr/bin/:${PATH}"
+exec "${HERE}/usr/bin/KitoMarketPro" "$@"
+EOF
+        chmod +x AppDir/AppRun
+
+    - name: Build AppImage
+      run: |
+        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        chmod +x appimagetool-x86_64.AppImage
+        ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir KitoMarketPro.AppImage
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: KitoMarketPro-Linux
+        path: KitoMarketPro.AppImage
