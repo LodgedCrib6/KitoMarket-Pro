@@ -9,119 +9,32 @@ from PIL import Image, ImageTk
 
 OS = platform.system()  # "Windows", "Darwin" (macOS), "Linux"
 
-# --- CONFIGURACIÓN DE RECURSOS (ICONOS) ---
-def obtener_ruta_recurso(nombre_archivo):
-    """
-    Busca un recurso (ícono, imagen) en el orden correcto:
-    1. APPDIR (AppImage en Linux)
-    2. _MEIPASS (PyInstaller Windows/macOS)
-    3. Directorio del ejecutable
-    4. Directorio del script (desarrollo)
-    """
-    # Opción 1: AppImage en Linux (usa variable de entorno APPDIR)
-    if 'APPDIR' in os.environ:
-        appdir = os.environ['APPDIR']
-        
-        # En AppImage, el ícono está como "kitomarket.png" en múltiples ubicaciones
-        if nombre_archivo == 'KitoLogo.png':
-            nombres_buscar = ['kitomarket.png', 'KitoLogo.png', '.DirIcon']
-        else:
-            nombres_buscar = [nombre_archivo]
-        
-        for nombre in nombres_buscar:
-            posibles_rutas = [
-                os.path.join(appdir, nombre),
-                os.path.join(appdir, 'usr', 'share', 'pixmaps', nombre),
-                os.path.join(appdir, 'usr', 'share', 'icons', 'hicolor', '256x256', 'apps', nombre),
-            ]
-            for ruta in posibles_rutas:
-                if os.path.exists(ruta):
-                    print(f"🔍 Recurso encontrado: {ruta}")
-                    return ruta
-        
-        # Debug si no se encontró
-        print(f"❌ Recurso NO encontrado: {nombre_archivo}")
-        print(f"   APPDIR: {appdir}")
-        print(f"   Buscado como: {nombres_buscar}")
-        return None
-    
-    # Opción 2: PyInstaller (Windows/macOS)
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        ruta = os.path.join(sys._MEIPASS, nombre_archivo)
-        if os.path.exists(ruta):
-            print(f"🔍 Recurso encontrado (PyInstaller): {ruta}")
-            return ruta
-    
-    # Opción 3: Ejecutable empaquetado genérico
-    if getattr(sys, 'frozen', False):
-        ruta = os.path.join(os.path.dirname(sys.executable), nombre_archivo)
-        if os.path.exists(ruta):
-            print(f"🔍 Recurso encontrado (ejecutable): {ruta}")
-            return ruta
-    
-    # Opción 4: Desarrollo (mismo directorio del .py)
-    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), nombre_archivo)
-    if os.path.exists(ruta):
-        print(f"🔍 Recurso encontrado (desarrollo): {ruta}")
-        return ruta
-    
-    # No encontrado
-    print(f"❌ Recurso NO encontrado: {nombre_archivo}")
-    return None
-
 # --- CONFIGURACIÓN DE DB ---
 def obtener_ruta_db():
-    """
-    Estrategia inteligente para productos.db:
-    1. AppImage: junto al archivo .AppImage (usando variable APPIMAGE)
-    2. Otros: junto al ejecutable
-    3. Fallback: ~/.kitomarket/ si no hay permisos de escritura
-    """
     if getattr(sys, 'frozen', False):
-        # Aplicación empaquetada
-        
-        # Caso especial: AppImage en Linux
+        # Caso especial: AppImage en Linux (usa variable APPIMAGE)
         if 'APPIMAGE' in os.environ:
-            # APPIMAGE contiene la ruta completa al .AppImage original
-            # Ejemplo: /home/user/Descargas/KitoMarketPro.AppImage
+            # APPIMAGE apunta al .AppImage original, no al mount temporal
             base_path = os.path.dirname(os.environ['APPIMAGE'])
-            db_path = os.path.join(base_path, "productos.db")
-            print(f"📦 AppImage detectado")
-            print(f"   APPIMAGE: {os.environ['APPIMAGE']}")
-            print(f"   Base path: {base_path}")
-            print(f"   DB path: {db_path}")
         elif "Contents/MacOS" in os.path.dirname(sys.executable):
-            # macOS .app bundle
             base_path = os.path.abspath(os.path.join(os.path.dirname(sys.executable), "../../.."))
-            db_path = os.path.join(base_path, "productos.db")
         else:
-            # Windows .exe
             base_path = os.path.dirname(sys.executable)
-            db_path = os.path.join(base_path, "productos.db")
         
-        # Verificar si podemos escribir en esa ubicación
+        # Verificar permisos de escritura
+        db_path = os.path.join(base_path, "productos.db")
         try:
-            # Intentar crear/abrir el archivo para verificar permisos
             test_conn = sqlite3.connect(db_path)
             test_conn.close()
-            print(f"✅ DB con permisos de escritura: {db_path}")
             return db_path
-        except (PermissionError, sqlite3.OperationalError) as e:
-            # No tenemos permisos - usar carpeta home
-            print(f"⚠️ Sin permisos en {db_path}: {e}")
-            pass
+        except (PermissionError, sqlite3.OperationalError):
+            # Fallback a carpeta home
+            base_path = os.path.join(os.path.expanduser("~"), ".kitomarket")
+            os.makedirs(base_path, exist_ok=True)
+            return os.path.join(base_path, "productos.db")
     else:
-        # Modo desarrollo
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "productos.db")
-        print(f"🔧 Modo desarrollo: {db_path}")
-        return db_path
-    
-    # Fallback: carpeta en home del usuario
-    base_path = os.path.join(os.path.expanduser("~"), ".kitomarket")
-    os.makedirs(base_path, exist_ok=True)
-    db_path = os.path.join(base_path, "productos.db")
-    print(f"🏠 Usando carpeta home (fallback): {db_path}")
-    return db_path
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, "productos.db")
 
 DB_PATH = obtener_ruta_db()
 
@@ -146,15 +59,11 @@ class SplashScreen(ctk.CTkToplevel):
 
         # Logo
         try:
-            logo_path = obtener_ruta_recurso("KitoLogo.png")
-            if logo_path:
-                img = Image.open(logo_path).resize((200, 200), Image.LANCZOS)
-                self._logo = ImageTk.PhotoImage(img)
-                ctk.CTkLabel(self, image=self._logo, text="").pack(pady=(40, 10))
-            else:
-                raise FileNotFoundError("Logo no encontrado")
-        except Exception as e:
-            print(f"⚠️ No se pudo cargar el logo del splash: {e}")
+            base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+            img = Image.open(os.path.join(base, "KitoLogo.png")).resize((200, 200), Image.LANCZOS)
+            self._logo = ImageTk.PhotoImage(img)
+            ctk.CTkLabel(self, image=self._logo, text="").pack(pady=(40, 10))
+        except Exception:
             ctk.CTkLabel(self, text="🏪", font=("Arial", 80)).pack(pady=(40, 10))
 
         ctk.CTkLabel(self, text="KitoMarket Pro", font=("Arial", 22, "bold"), text_color="#2ecc71").pack()
@@ -167,39 +76,15 @@ class MinimarketApp(ctk.CTk):
 
         self.title("KitoMarket Pro")
         try:
+            base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
             if OS == "Windows":
-                # En Windows usamos doble método para asegurar que el ícono aparezca
-                # tanto en el archivo .exe como en la barra de tareas
-                ico_path = obtener_ruta_recurso("KitoLogo.ico")
-                png_path = obtener_ruta_recurso("KitoLogo.png")
-                
-                if ico_path:
-                    self.iconbitmap(ico_path)
-                    print(f"✅ Ícono .ico configurado: {ico_path}")
-                
-                # CustomTkinter en Windows a veces no muestra bien solo con .ico
-                # Agregamos también .png como fallback para la barra de tareas
-                if png_path:
-                    try:
-                        icon_img = Image.open(png_path)
-                        # Windows necesita múltiples tamaños
-                        icon_photo = ImageTk.PhotoImage(icon_img.resize((32, 32), Image.LANCZOS))
-                        self.iconphoto(True, icon_photo)
-                        # Guardar referencia para que no se borre de memoria
-                        self._icon_ref = icon_photo
-                        print(f"✅ Ícono .png configurado: {png_path}")
-                    except Exception as e:
-                        print(f"⚠️ No se pudo cargar .png: {e}")
-                        
+                self.iconbitmap(os.path.join(base, "KitoLogo.ico"))
             elif OS == "Linux":
-                png_path = obtener_ruta_recurso("KitoLogo.png")
-                if png_path:
-                    icon = ImageTk.PhotoImage(Image.open(png_path).resize((64, 64)))
-                    self.iconphoto(True, icon)
-                    self._icon_ref = icon
+                icon = ImageTk.PhotoImage(Image.open(os.path.join(base, "KitoLogo.png")).resize((64, 64)))
+                self.iconphoto(True, icon)
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
-        except Exception as e:
-            print(f"⚠️ No se pudo configurar el ícono de la ventana: {e}")
+        except Exception:
+            pass
         self.ventana_abierta = None
         self.codigo_actual = None
         self.historial_data = []
@@ -569,10 +454,6 @@ class MinimarketApp(ctk.CTk):
         lb.bind("<Double-Button-1>", seleccionar)
 
 if __name__ == "__main__":
-    # Mostrar ruta de la base de datos en consola (útil para debug)
-    print(f"📁 Base de datos: {DB_PATH}")
-    print(f"🖼️  Logo path: {obtener_ruta_recurso('KitoLogo.png')}")
-    
     conn = sqlite3.connect(DB_PATH)
     conn.execute("CREATE TABLE IF NOT EXISTS productos (codigo TEXT PRIMARY KEY, nombre TEXT, precio INTEGER, fecha_actualizacion TEXT)")
     conn.close()
