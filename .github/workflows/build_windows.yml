@@ -88,7 +88,7 @@ jobs:
           cp dist/KitoMarketPro AppDir/usr/bin/
           cp KitoLogo.png AppDir/usr/share/icons/hicolor/256x256/apps/kitomarket.png
           cp KitoLogo.png AppDir/kitomarket.png
-          cp KitoLogo.png AppDir/.DirIcon
+          ln -s kitomarket.png AppDir/.DirIcon
 
           # Desktop entry
           cat > AppDir/kitomarket.desktop << 'DESKTOP'
@@ -106,17 +106,6 @@ jobs:
           SELF=$(readlink -f "$0")
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin/:${PATH}"
-          
-          # Copiar ícono a ubicación donde el sistema lo encuentra
-          ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
-          mkdir -p "$ICON_DIR"
-          cp -f "${HERE}/kitomarket.png" "$ICON_DIR/kitomarket.png" 2>/dev/null || true
-          
-          # Actualizar cache de iconos si existe gtk-update-icon-cache
-          if command -v gtk-update-icon-cache &> /dev/null; then
-              gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
-          fi
-          
           exec "${HERE}/usr/bin/KitoMarketPro" "$@"
           APPRUN
           chmod +x AppDir/AppRun
