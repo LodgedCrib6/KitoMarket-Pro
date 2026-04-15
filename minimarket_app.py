@@ -59,11 +59,19 @@ class SplashScreen(ctk.CTkToplevel):
 
         # Logo
         try:
-            base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-            img = Image.open(os.path.join(base, "KitoLogo.png")).resize((200, 200), Image.LANCZOS)
+            # En AppImage, usar APPDIR; en desarrollo/PyInstaller, usar _MEIPASS o directorio del script
+            if 'APPDIR' in os.environ:
+                logo_path = os.path.join(os.environ['APPDIR'], "kitomarket.png")
+            elif getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                logo_path = os.path.join(sys._MEIPASS, "KitoLogo.png")
+            else:
+                logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo.png")
+            
+            img = Image.open(logo_path).resize((200, 200), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(img)
             ctk.CTkLabel(self, image=self._logo, text="").pack(pady=(40, 10))
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ No se pudo cargar el logo del splash: {e}")
             ctk.CTkLabel(self, text="🏪", font=("Arial", 80)).pack(pady=(40, 10))
 
         ctk.CTkLabel(self, text="KitoMarket Pro", font=("Arial", 22, "bold"), text_color="#2ecc71").pack()
@@ -76,15 +84,23 @@ class MinimarketApp(ctk.CTk):
 
         self.title("KitoMarket Pro")
         try:
-            base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
             if OS == "Windows":
+                base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
                 self.iconbitmap(os.path.join(base, "KitoLogo.ico"))
             elif OS == "Linux":
-                icon = ImageTk.PhotoImage(Image.open(os.path.join(base, "KitoLogo.png")).resize((64, 64)))
+                # En AppImage, usar APPDIR; en desarrollo, usar directorio del script
+                if 'APPDIR' in os.environ:
+                    icon_path = os.path.join(os.environ['APPDIR'], "kitomarket.png")
+                elif getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                    icon_path = os.path.join(sys._MEIPASS, "KitoLogo.png")
+                else:
+                    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo.png")
+                
+                icon = ImageTk.PhotoImage(Image.open(icon_path).resize((64, 64)))
                 self.iconphoto(True, icon)
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ No se pudo configurar el ícono de la ventana: {e}")
         self.ventana_abierta = None
         self.codigo_actual = None
         self.historial_data = []
