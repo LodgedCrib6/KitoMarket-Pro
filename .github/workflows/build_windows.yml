@@ -90,7 +90,7 @@ jobs:
           cp KitoLogo.png AppDir/kitomarket.png
           ln -s kitomarket.png AppDir/.DirIcon
 
-          # Desktop entry
+          # Desktop entry (AQUI ESTÁ LA SOLUCIÓN: StartupWMClass)
           cat > AppDir/kitomarket.desktop << 'DESKTOP'
           [Desktop Entry]
           Name=KitoMarket Pro
@@ -98,6 +98,7 @@ jobs:
           Icon=kitomarket
           Type=Application
           Categories=Office;
+          StartupWMClass=KitoMarketPro
           DESKTOP
 
           # AppRun
