@@ -80,7 +80,8 @@ class SplashScreen(ctk.CTkToplevel):
 
 class MinimarketApp(ctk.CTk):
     def __init__(self):
-        super().__init__()
+        # AQUI ESTÁ LA SOLUCIÓN: Definir className
+        super().__init__(className="KitoMarketPro")
 
         self.title("KitoMarket Pro")
         try:
