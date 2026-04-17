@@ -80,7 +80,7 @@ jobs:
       - name: Instalar dependencias Python
         run: pip install customtkinter pyinstaller pillow
       - name: Construir binario
-        run: pyinstaller --onefile --windowed --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
+        run: pyinstaller --onefile --windowed --add-data "KitoLogo.png:." --hidden-import PIL._tkinter_finder --name KitoMarketPro minimarket_app.py
       - name: Crear estructura AppImage
         run: |
           mkdir -p AppDir/usr/bin
