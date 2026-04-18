@@ -84,20 +84,30 @@ jobs:
       - name: Crear estructura AppImage
         run: |
           mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps
+          mkdir -p AppDir/usr/share/icons/hicolor/128x128/apps
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/KitoMarketPro AppDir/usr/bin/
+          
+          # Copiar ícono a múltiples tamaños
           cp KitoLogo256.png AppDir/usr/share/icons/hicolor/256x256/apps/kitomarket.png
+          cp KitoLogo256.png AppDir/usr/share/icons/hicolor/128x128/apps/kitomarket.png
+          cp KitoLogo256.png AppDir/usr/share/icons/hicolor/64x64/apps/kitomarket.png
           cp KitoLogo256.png AppDir/kitomarket.png
           ln -s kitomarket.png AppDir/.DirIcon
 
-          # Desktop entry
+          # Desktop entry con metadatos AppImage
           cat > AppDir/kitomarket.desktop << 'DESKTOP'
           [Desktop Entry]
+          X-AppImage-Arch=x86_64
+          X-AppImage-Version=1.0
+          X-AppImage-Name=KitoMarketPro
           Name=KitoMarket Pro
           Exec=KitoMarketPro
           Icon=kitomarket
           Type=Application
           Categories=Office;
+          Terminal=false
           DESKTOP
 
           # AppRun
