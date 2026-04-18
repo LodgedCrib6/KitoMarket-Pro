@@ -63,9 +63,9 @@ class SplashScreen(ctk.CTkToplevel):
             if 'APPDIR' in os.environ:
                 logo_path = os.path.join(os.environ['APPDIR'], "kitomarket.png")
             elif getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-                logo_path = os.path.join(sys._MEIPASS, "KitoLogo.png")
+                logo_path = os.path.join(sys._MEIPASS, "KitoLogo256.png" if OS == "Linux" else "KitoLogo.png")
             else:
-                logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo.png")
+                logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo256.png" if OS == "Linux" else "KitoLogo.png")
             
             img = Image.open(logo_path).resize((200, 200), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(img)
@@ -92,11 +92,11 @@ class MinimarketApp(ctk.CTk):
                 if 'APPDIR' in os.environ:
                     icon_path = os.path.join(os.environ['APPDIR'], "kitomarket.png")
                 elif getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-                    icon_path = os.path.join(sys._MEIPASS, "KitoLogo.png")
+                    icon_path = os.path.join(sys._MEIPASS, "KitoLogo256.png")
                 else:
-                    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo.png")
+                    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KitoLogo256.png")
                 
-                icon = ImageTk.PhotoImage(Image.open(icon_path).resize((64, 64)))
+                icon = ImageTk.PhotoImage(Image.open(icon_path))
                 self.iconphoto(True, icon)
             # macOS: el ícono lo maneja el .icns del bundle, no hace falta código
         except Exception as e:
