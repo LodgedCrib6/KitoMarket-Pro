@@ -26,8 +26,8 @@ jobs:
           name: KitoMarketPro-Windows
           path: dist/KitoMarketPro.exe
 
-  build-macos:
-    runs-on: macos-latest
+  build-macos-apple-silicon:
+    runs-on: macos-latest  # M1/M2 runner (ARM64)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,17 +54,57 @@ jobs:
         run: |
           brew install create-dmg
           create-dmg \
-            --volname "KitoMarket Pro" \
+            --volname "KitoMarket Pro (Apple Silicon)" \
             --window-size 500 300 \
             --icon-size 100 \
             --icon "KitoMarketPro.app" 120 150 \
             --app-drop-link 380 150 \
-            "KitoMarketPro.dmg" \
+            "KitoMarketPro-AppleSilicon.dmg" \
             "dist/"
       - uses: actions/upload-artifact@v4
         with:
-          name: KitoMarketPro-macOS
-          path: KitoMarketPro.dmg
+          name: KitoMarketPro-macOS-AppleSilicon
+          path: KitoMarketPro-AppleSilicon.dmg
+
+  build-macos-intel:
+    runs-on: macos-13  # Runner con Intel (x86_64)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencias
+        run: pip install customtkinter pyinstaller pillow
+      - name: Convertir PNG a ICNS
+        run: |
+          mkdir -p KitoLogo.iconset
+          sips -z 16 16     KitoLogo.png --out KitoLogo.iconset/icon_16x16.png
+          sips -z 32 32     KitoLogo.png --out KitoLogo.iconset/icon_16x16@2x.png
+          sips -z 32 32     KitoLogo.png --out KitoLogo.iconset/icon_32x32.png
+          sips -z 64 64     KitoLogo.png --out KitoLogo.iconset/icon_32x32@2x.png
+          sips -z 128 128   KitoLogo.png --out KitoLogo.iconset/icon_128x128.png
+          sips -z 256 256   KitoLogo.png --out KitoLogo.iconset/icon_128x128@2x.png
+          sips -z 256 256   KitoLogo.png --out KitoLogo.iconset/icon_256x256.png
+          sips -z 512 512   KitoLogo.png --out KitoLogo.iconset/icon_256x256@2x.png
+          sips -z 512 512   KitoLogo.png --out KitoLogo.iconset/icon_512x512.png
+          iconutil -c icns KitoLogo.iconset -o KitoLogo.icns
+      - name: Construir .app
+        run: pyinstaller --windowed --icon=KitoLogo.icns --add-data "KitoLogo.png:." --name KitoMarketPro minimarket_app.py
+      - name: Empaquetar en DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "KitoMarket Pro (Intel)" \
+            --window-size 500 300 \
+            --icon-size 100 \
+            --icon "KitoMarketPro.app" 120 150 \
+            --app-drop-link 380 150 \
+            "KitoMarketPro-Intel.dmg" \
+            "dist/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KitoMarketPro-macOS-Intel
+          path: KitoMarketPro-Intel.dmg
 
   build-linux:
     runs-on: ubuntu-latest
