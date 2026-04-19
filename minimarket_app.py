@@ -290,9 +290,29 @@ class MinimarketApp(ctk.CTk):
         if self._proteger_emergente:
             return
         try:
+            # Verificar si la ventana emergente sigue existiendo
+            if not (self.ventana_abierta and self.ventana_abierta.winfo_exists()):
+                return
+            
             foco = self.focus_get()
-            # Si el foco está en la principal o en un widget de ella, cerrar
-            if foco and str(foco).startswith(str(self)):
+            # Si no hay foco, no hacer nada
+            if not foco:
+                return
+            
+            # Verificar si el foco está en la ventana emergente
+            foco_en_emergente = False
+            widget_actual = foco
+            while widget_actual:
+                if widget_actual == v:
+                    foco_en_emergente = True
+                    break
+                try:
+                    widget_actual = widget_actual.master
+                except:
+                    break
+            
+            # Solo cerrar si el foco NO está en la emergente
+            if not foco_en_emergente:
                 if self.ventana_abierta and self.ventana_abierta.winfo_exists():
                     self.ventana_abierta.destroy()
                     self.ventana_abierta = None
