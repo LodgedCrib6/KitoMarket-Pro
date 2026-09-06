@@ -138,6 +138,9 @@ class MinimarketApp(ctk.CTk):
         self.btn_reg = ctk.CTkButton(self.top_bar, text="➕ REGISTRAR", fg_color="#2ecc71", width=160, height=45, font=("Arial", 14, "bold"), command=self.abrir_ventana_registro)
         self.btn_reg.pack(side="left")
 
+        self.btn_calc = ctk.CTkButton(self.top_bar, text="🧮 CALCULADORA", fg_color="#8e44ad", hover_color="#6c3483", width=170, height=45, font=("Arial", 14, "bold"), command=self.abrir_modo_calculadora)
+        self.btn_calc.pack(side="left", expand=True)
+
         self.btn_bus = ctk.CTkButton(self.top_bar, text="🔍 BUSCADOR", fg_color="#3498db", width=160, height=45, font=("Arial", 14, "bold"), command=self.abrir_ventana_busqueda)
         self.btn_bus.pack(side="right")
 
@@ -160,6 +163,9 @@ class MinimarketApp(ctk.CTk):
         self.lbl_precio = ctk.CTkLabel(self.visor, text="$ 0", font=("Arial", 140, "bold"), text_color="#D4AF37")
         self.lbl_precio.pack(pady=0)
 
+        self.lbl_codigo = ctk.CTkLabel(self.visor, text="", font=("Arial", 13), text_color="gray")
+        self.lbl_codigo.pack(pady=(0, 2))
+
         self.lbl_semaforo = ctk.CTkLabel(self.visor, text="", font=("Arial", 18, "bold"), corner_radius=10, height=40)
         self.lbl_semaforo.pack(pady=4)
 
@@ -181,6 +187,13 @@ class MinimarketApp(ctk.CTk):
             command=self.guardar_precio_rapido
         )
         self.btn_guardar_precio.pack(side="left", padx=(0, 10), pady=8)
+
+        self.btn_confirmar_precio = ctk.CTkButton(
+            self.edit_frame, text="✅ CONFIRMAR PRECIO", fg_color="#2E7D32", hover_color="#1B5E20",
+            width=170, height=38, font=("Arial", 13, "bold"), corner_radius=8,
+            command=self.confirmar_precio_actual
+        )
+        self.btn_confirmar_precio.pack(side="left", padx=(0, 10), pady=8)
 
         self.btn_lapiz = ctk.CTkButton(
             self.edit_frame, text="✏️", fg_color="#555555", hover_color="#777777",
@@ -230,6 +243,7 @@ class MinimarketApp(ctk.CTk):
         t_guia     = max(int(18  * escala), 10)
         t_scan     = max(int(42  * escala), 16)
         t_semaf    = max(int(20  * escala), 10)
+        t_codigo   = max(int(13  * escala), 9)
         t_hist     = max(int(13  * escala), 8)
         ancho_scan = max(int(440 * escala), 180)
         alto_scan  = max(int(70  * escala), 30)
@@ -240,6 +254,7 @@ class MinimarketApp(ctk.CTk):
         self.lbl_guia.configure(font=("Arial", t_guia, "bold"))
         self.entry_scan.configure(font=("Arial", t_scan, "bold"), width=ancho_scan, height=alto_scan)
         self.lbl_semaforo.configure(font=("Arial", t_semaf, "bold"))
+        self.lbl_codigo.configure(font=("Arial", t_codigo))
 
         for frame in self.hist_frame.winfo_children():
             for lbl in frame.winfo_children():
@@ -335,6 +350,7 @@ class MinimarketApp(ctk.CTk):
             self.codigo_actual = res[0]
             self.lbl_nombre.configure(text=str(res[1]).upper(), text_color=("#111", "#EEE"))
             self.lbl_precio.configure(text=f"${res[2]:,}".replace(",", "."))
+            self.lbl_codigo.configure(text=f"Código: {res[0]}")
             self.gestionar_semaforo(res[3])
             self.actualizar_historial(res[1], res[2])
             self.entry_nuevo_precio.delete(0, 'end')
@@ -345,7 +361,8 @@ class MinimarketApp(ctk.CTk):
             self.codigo_actual = cod
             self.lbl_nombre.configure(text="ARTÍCULO NO ENCONTRADO", text_color="#e74c3c")
             self.lbl_precio.configure(text="---")
-            self.lbl_semaforo.configure(text=f"CÓDIGO: {cod}", fg_color="transparent", text_color="gray")
+            self.lbl_codigo.configure(text=f"Código: {cod}")
+            self.lbl_semaforo.configure(text="", fg_color="transparent")
             self.edit_frame.pack_forget()
             self.hist_frame.pack_forget()
             # Botón para registrar el producto recién escaneado
@@ -402,6 +419,17 @@ class MinimarketApp(ctk.CTk):
         conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
         cur.execute("UPDATE productos SET precio=?, fecha_actualizacion=? WHERE codigo=?",
                     (int(p), datetime.now().strftime("%d/%m/%Y"), self.codigo_actual))
+        conn.commit(); conn.close()
+        self.entry_scan.insert(0, self.codigo_actual)
+        self.buscar_barras()
+        self.after(100, self._focus_scan)
+
+    def confirmar_precio_actual(self):
+        """Confirma que el precio sigue vigente: solo actualiza la fecha, sin modificar el valor."""
+        if not self.codigo_actual: return
+        conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
+        cur.execute("UPDATE productos SET fecha_actualizacion=? WHERE codigo=?",
+                    (datetime.now().strftime("%d/%m/%Y"), self.codigo_actual))
         conn.commit(); conn.close()
         self.entry_scan.insert(0, self.codigo_actual)
         self.buscar_barras()
@@ -538,6 +566,94 @@ class MinimarketApp(ctk.CTk):
 
         e_bus.bind("<KeyRelease>", buscar)
         lb.bind("<Double-Button-1>", seleccionar)
+
+    def abrir_modo_calculadora(self):
+        v = self._abrir_emergente("Modo Calculadora", "580x720")
+        self._calc_items = []  # cada apertura empieza una cuenta nueva
+
+        ctk.CTkLabel(v, text="🧮 MODO CALCULADORA", font=("Arial", 20, "bold")).pack(pady=(20, 4))
+        ctk.CTkLabel(v, text="Escanea los productos para ir sumando", font=("Arial", 12), text_color="gray").pack(pady=(0, 10))
+
+        entry_calc = ctk.CTkEntry(v, font=("Arial", 22, "bold"), justify="center", width=300, height=48,
+                                   validate="key", validatecommand=(self._val_num, "%P"))
+        entry_calc.pack(pady=(0, 12))
+
+        lista_frame = ctk.CTkScrollableFrame(v, width=500, height=260, fg_color="#f0f0f0")
+        lista_frame.pack(padx=20, pady=(0, 10), fill="both", expand=True)
+
+        lbl_total = ctk.CTkLabel(v, text="TOTAL: $ 0", font=("Arial", 32, "bold"), text_color="#2E7D32")
+        lbl_total.pack(pady=(4, 12))
+
+        def recalcular():
+            total = sum(it['precio'] * it['cantidad'] for it in self._calc_items)
+            lbl_total.configure(text=f"TOTAL: ${total:,}".replace(",", "."))
+            for w in lista_frame.winfo_children(): w.destroy()
+            for idx, it in enumerate(self._calc_items):
+                subt = it['precio'] * it['cantidad']
+                fila = ctk.CTkFrame(lista_frame, fg_color="white", corner_radius=6)
+                fila.pack(fill="x", pady=3, padx=2)
+                texto = f"{it['nombre'][:24]}  x{it['cantidad']}  ·  ${it['precio']:,}".replace(",", ".")
+                ctk.CTkLabel(fila, text=texto, font=("Arial", 13), anchor="w").pack(side="left", padx=10, pady=8, fill="x", expand=True)
+                ctk.CTkLabel(fila, text=f"${subt:,}".replace(",", "."), font=("Arial", 13, "bold")).pack(side="left", padx=8)
+                ctk.CTkButton(fila, text="✕", width=30, height=28, fg_color="#c0392b", hover_color="#922b21",
+                              command=lambda i=idx: quitar_item(i)).pack(side="right", padx=8)
+
+        def quitar_item(i):
+            if 0 <= i < len(self._calc_items):
+                self._calc_items.pop(i)
+                recalcular()
+
+        def agregar_item(nombre, precio):
+            for it in self._calc_items:
+                if it['nombre'] == nombre and it['precio'] == precio:
+                    it['cantidad'] += 1
+                    recalcular()
+                    return
+            self._calc_items.append({'nombre': nombre, 'precio': precio, 'cantidad': 1})
+            recalcular()
+
+        def procesar_scan(event=None):
+            cod = entry_calc.get().strip()
+            entry_calc.delete(0, 'end')
+            if not cod: return
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("SELECT nombre, precio FROM productos WHERE codigo=?", (cod,))
+            res = c.fetchone(); conn.close()
+            if res:
+                agregar_item(res[0], res[1])
+            else:
+                messagebox.showwarning("No encontrado", f"El código {cod} no está registrado.\nPuedes agregarlo manualmente abajo.")
+        entry_calc.bind("<Return>", procesar_scan)
+
+        # --- Agregar producto sin código (venta manual) ---
+        ctk.CTkLabel(v, text="¿Producto sin código? Agrégalo manual:", font=("Arial", 12, "bold"), text_color="gray").pack(pady=(0, 4))
+        frame_manual = ctk.CTkFrame(v, fg_color="transparent")
+        frame_manual.pack(pady=(0, 15))
+
+        e_nombre_manual = ctk.CTkEntry(frame_manual, placeholder_text="Nombre (opcional)", width=190, height=38)
+        e_nombre_manual.pack(side="left", padx=4)
+        e_precio_manual = ctk.CTkEntry(frame_manual, placeholder_text="Precio", width=100, height=38,
+                                        validate="key", validatecommand=(self._val_precio, "%P"))
+        e_precio_manual.pack(side="left", padx=4)
+
+        def agregar_manual():
+            nom = e_nombre_manual.get().strip().upper() or "PRODUCTO MANUAL"
+            pre = e_precio_manual.get().strip()
+            if not pre.isdigit():
+                messagebox.showwarning("Precio inválido", "Ingresa un precio válido.")
+                return
+            agregar_item(nom, int(pre))
+            e_nombre_manual.delete(0, 'end'); e_precio_manual.delete(0, 'end')
+            entry_calc.focus_set()
+        e_precio_manual.bind("<Return>", lambda e: agregar_manual())
+
+        ctk.CTkButton(frame_manual, text="+ AGREGAR", fg_color="#e67e22", hover_color="#d35400",
+                      width=90, height=38, command=agregar_manual).pack(side="left", padx=4)
+
+        ctk.CTkButton(v, text="🗑️ LIMPIAR TODO", fg_color="#c0392b", hover_color="#922b21",
+                      width=200, height=42, command=lambda: (self._calc_items.clear(), recalcular())).pack(pady=(0, 15))
+
+        entry_calc.focus_set()
 
 if __name__ == "__main__":
     conn = sqlite3.connect(DB_PATH)
