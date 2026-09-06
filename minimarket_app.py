@@ -109,7 +109,7 @@ class MinimarketApp(ctk.CTk):
 
         # --- Validadores ---
         self._val_num    = self.register(lambda s: s.isdigit() or s == "")
-        self._val_precio = self.register(lambda s: (s.isdigit() or s == "") and len(s) <= 6)
+        self._val_precio = self.register(lambda s: (s.isdigit() or s == "") and len(s) <= 9)
 
         # --- Arrancar centrado y adaptado a la pantalla actual ---
         sw = self.winfo_screenwidth()
@@ -436,7 +436,7 @@ class MinimarketApp(ctk.CTk):
             visual = f"$ {int(crudo):,}".replace(",", ".")
             e_p.delete(0, 'end')
             e_p.insert(0, visual)
-        e_p.bind("<KeyRelease>", formatear_precio_edicion)
+        e_p.bind("<FocusOut>", formatear_precio_edicion)
 
         def guardar_edicion():
             nom = e_n.get().strip().upper()
@@ -473,12 +473,13 @@ class MinimarketApp(ctk.CTk):
         e_n = ctk.CTkEntry(v, placeholder_text="Ej: COCA COLA 1.5L", width=300, height=40); e_n.pack(pady=(2, 12))
 
         # --- Precio ---
-        ctk.CTkLabel(v, text="Precio de venta (máx. 6 dígitos)", font=("Arial", 13, "bold"), text_color="gray",
+        ctk.CTkLabel(v, text="Precio de venta", font=("Arial", 13, "bold"), text_color="gray",
                      anchor="w").pack(fill="x", padx=75)
-        e_p = ctk.CTkEntry(v, placeholder_text="Ej: $ 1.000", width=300, height=40,
+        e_p = ctk.CTkEntry(v, placeholder_text="Ej: 1000", width=300, height=40,
                            validate="key", validatecommand=(self._val_precio, "%P")); e_p.pack(pady=(2, 10))
 
-        # Formatea el precio como $ 1.000 mientras se escribe, sin romper la validación numérica interna
+        # Formatea el precio como $ 1.000 solo al salir del campo (no en cada tecla,
+        # para no pelear con el validador de Tkinter — eso causaba el borrado en macOS)
         def formatear_precio(event=None):
             crudo = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
             if not crudo.isdigit():
@@ -486,7 +487,7 @@ class MinimarketApp(ctk.CTk):
             visual = f"$ {int(crudo):,}".replace(",", ".")
             e_p.delete(0, 'end')
             e_p.insert(0, visual)
-        e_p.bind("<KeyRelease>", formatear_precio)
+        e_p.bind("<FocusOut>", formatear_precio)
 
         def guardar():
             c = e_c.get().strip()
