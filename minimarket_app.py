@@ -583,18 +583,36 @@ class MinimarketApp(ctk.CTk):
 
     def abrir_ventana_busqueda(self):
         v = self._abrir_emergente("Buscador de Artículos", "550x600")
+        v.configure(fg_color="#DCEEFB")  # celeste, en línea con el botón BUSCADOR
 
-        e_bus = ctk.CTkEntry(v, placeholder_text="Nombre del producto...", height=45); e_bus.pack(fill="x", padx=30, pady=20)
+        e_bus = ctk.CTkEntry(v, placeholder_text="Nombre del producto...", height=45,
+                              fg_color="white", text_color="#111", border_color="#3498db")
+        e_bus.pack(fill="x", padx=30, pady=20)
+
         import tkinter as tk
-        lb = tk.Listbox(v, font=("Arial", 16), bg="#f0f0f0"); lb.pack(fill="both", expand=True, padx=30, pady=10)
+        lb = tk.Listbox(
+            v, font=("Arial", 16),
+            bg="white", fg="#111111",
+            selectbackground="#3498db", selectforeground="white",
+            highlightthickness=1, highlightbackground="#3498db",
+            relief="solid", bd=1, activestyle="none"
+        )
+        lb.pack(fill="both", expand=True, padx=30, pady=10)
+
+        # Colores de advertencia por antigüedad del precio (mismo criterio que la pantalla principal)
+        COLOR_ITEM = {'rojo': ("#F5C6CB", "#7B241C"), 'amarillo': ("#FFF3CD", "#7A5B00"), 'verde': ("white", "#111111")}
 
         def buscar(ev=None):
             t = e_bus.get().strip(); lb.delete(0, 'end')
             if len(t) < 2: return
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-            c.execute("SELECT codigo, nombre, precio FROM productos WHERE nombre LIKE ?", (f'%{t}%',))
-            for r in c.fetchall(): lb.insert('end', f" {r[1]} | ${r[2]:,} | ({r[0]})")
-            conn.close()
+            c.execute("SELECT codigo, nombre, precio, fecha_actualizacion FROM productos WHERE nombre LIKE ?", (f'%{t}%',))
+            filas = c.fetchall(); conn.close()
+            for i, r in enumerate(filas):
+                lb.insert('end', f" {r[1]} | ${r[2]:,} | ({r[0]})")
+                nivel = self._nivel_alerta_precio(r[3])
+                bg, fg = COLOR_ITEM.get(nivel, ("white", "#111111"))
+                lb.itemconfig(i, bg=bg, fg=fg)
 
         def seleccionar(ev=None):
             try:
