@@ -107,6 +107,11 @@ class MinimarketApp(ctk.CTk):
         self._proteger_emergente = False
         self._tiempo_proteccion = 500 if OS == "Windows" else 200
 
+        # --- Colores de fondo (normal vs. alerta roja) ---
+        self._bg_normal = "#EBEBEB"
+        self._bg_alerta = "#F5C6CB"
+        self.configure(fg_color=self._bg_normal)
+
         # --- Validadores ---
         self._val_num    = self.register(lambda s: s.isdigit() or s == "")
         self._val_precio = self.register(lambda s: (s.isdigit() or s == "") and len(s) <= 6)
@@ -365,26 +370,36 @@ class MinimarketApp(ctk.CTk):
             self.lbl_semaforo.configure(text="", fg_color="transparent")
             self.edit_frame.pack_forget()
             self.hist_frame.pack_forget()
+            self._set_fondo_alerta(True)
             # Botón para registrar el producto recién escaneado
             self._mostrar_btn_registrar_ahora(cod)
 
         self.entry_scan.delete(0, 'end')
 
+    def _set_fondo_alerta(self, activo):
+        """Tiñe toda la ventana de un rojo suave cuando el precio está muy desactualizado o el producto no existe."""
+        self.configure(fg_color=self._bg_alerta if activo else self._bg_normal)
+
     def gestionar_semaforo(self, fecha_str):
         if not fecha_str or fecha_str.strip() == "":
             self.lbl_semaforo.configure(text="🚨 SIN FECHA - REVISAR PRECIO", fg_color="#D32F2F", text_color="white")
+            self._set_fondo_alerta(True)
             return
         try:
             f_dt = datetime.strptime(fecha_str.split()[0], "%d/%m/%Y")
             dias = (datetime.now() - f_dt).days
             if dias < 90:
                 self.lbl_semaforo.configure(text=f"✅ PRECIO AL DÍA ({fecha_str})", fg_color="#2E7D32", text_color="white")
+                self._set_fondo_alerta(False)
             elif dias < 365:
                 self.lbl_semaforo.configure(text=f"⚠️ PRECIO ANTIGUO ({fecha_str})", fg_color="#FBC02D", text_color="black")
+                self._set_fondo_alerta(False)
             else:
                 self.lbl_semaforo.configure(text=f"🚨 VERIFICAR URGENTE ({fecha_str})", fg_color="#D32F2F", text_color="white")
+                self._set_fondo_alerta(True)
         except:
             self.lbl_semaforo.configure(text="🚨 ERROR FECHA", fg_color="#D32F2F", text_color="white")
+            self._set_fondo_alerta(True)
 
     def actualizar_historial(self, nom, pre):
         item = (nom[:15].upper(), f"${pre:,}".replace(",", "."))
@@ -427,6 +442,15 @@ class MinimarketApp(ctk.CTk):
     def confirmar_precio_actual(self):
         """Confirma que el precio sigue vigente: solo actualiza la fecha, sin modificar el valor."""
         if not self.codigo_actual: return
+        nombre = self.lbl_nombre.cget("text")
+        precio_txt = self.lbl_precio.cget("text")
+        confirmar = messagebox.askyesno(
+            "Confirmar precio",
+            f"¿Confirmas que el precio de:\n\n{nombre}\n\nsigue siendo {precio_txt}?\n\n"
+            "Esto marca el precio como revisado hoy, sin cambiar su valor."
+        )
+        if not confirmar:
+            return
         conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
         cur.execute("UPDATE productos SET fecha_actualizacion=? WHERE codigo=?",
                     (datetime.now().strftime("%d/%m/%Y"), self.codigo_actual))
