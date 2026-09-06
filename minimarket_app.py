@@ -414,18 +414,33 @@ class MinimarketApp(ctk.CTk):
         res = c.fetchone(); conn.close()
         if not res: return
 
-        v = self._abrir_emergente("Corregir Producto", "450x360")
+        v = self._abrir_emergente("Corregir Producto", "450x440")
 
-        ctk.CTkLabel(v, text="✏️ CORREGIR PRODUCTO", font=("Arial", 20, "bold")).pack(pady=20)
+        ctk.CTkLabel(v, text="✏️ CORREGIR PRODUCTO", font=("Arial", 20, "bold")).pack(pady=(20, 15))
+
+        ctk.CTkLabel(v, text="Nombre del producto", font=("Arial", 13, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=55)
         e_n = ctk.CTkEntry(v, width=340, height=45, font=("Arial", 16))
-        e_n.insert(0, res[0]); e_n.pack(pady=10)
+        e_n.insert(0, res[0]); e_n.pack(pady=(2, 12))
+
+        ctk.CTkLabel(v, text="Precio de venta", font=("Arial", 13, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=55)
         e_p = ctk.CTkEntry(v, width=340, height=45, font=("Arial", 16),
                            validate="key", validatecommand=(self._val_precio, "%P"))
-        e_p.insert(0, str(res[1])); e_p.pack(pady=10)
+        e_p.insert(0, f"$ {res[1]:,}".replace(",", ".")); e_p.pack(pady=(2, 10))
+
+        def formatear_precio_edicion(event=None):
+            crudo = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
+            if not crudo.isdigit():
+                return
+            visual = f"$ {int(crudo):,}".replace(",", ".")
+            e_p.delete(0, 'end')
+            e_p.insert(0, visual)
+        e_p.bind("<KeyRelease>", formatear_precio_edicion)
 
         def guardar_edicion():
             nom = e_n.get().strip().upper()
-            pre = e_p.get().strip()
+            pre = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
             if nom and pre.isdigit():
                 conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
                 cur.execute("UPDATE productos SET nombre=?, precio=?, fecha_actualizacion=? WHERE codigo=?",
@@ -441,25 +456,51 @@ class MinimarketApp(ctk.CTk):
         ctk.CTkButton(v, text="GUARDAR CAMBIOS", fg_color="#2ecc71", height=50, width=340, command=guardar_edicion).pack(pady=20)
 
     def abrir_ventana_registro(self, cod_sugerido=""):
-        v = self._abrir_emergente("Registro de Producto", "450x500")
+        v = self._abrir_emergente("Registro de Producto", "450x560")
 
-        ctk.CTkLabel(v, text="DATOS DEL PRODUCTO", font=("Arial", 20, "bold")).pack(pady=20)
-        e_c = ctk.CTkEntry(v, placeholder_text="Código", width=300, height=40,
-                           validate="key", validatecommand=(self._val_num, "%P")); e_c.pack(pady=10)
+        ctk.CTkLabel(v, text="DATOS DEL PRODUCTO", font=("Arial", 20, "bold")).pack(pady=(20, 15))
+
+        # --- Código ---
+        ctk.CTkLabel(v, text="Código de barras", font=("Arial", 13, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=75)
+        e_c = ctk.CTkEntry(v, placeholder_text="Ej: 7801234567890", width=300, height=40,
+                           validate="key", validatecommand=(self._val_num, "%P")); e_c.pack(pady=(2, 12))
         if cod_sugerido: e_c.insert(0, str(cod_sugerido))
-        e_n = ctk.CTkEntry(v, placeholder_text="Nombre", width=300, height=40); e_n.pack(pady=10)
-        e_p = ctk.CTkEntry(v, placeholder_text="Precio (máx. 6 dígitos)", width=300, height=40,
-                           validate="key", validatecommand=(self._val_precio, "%P")); e_p.pack(pady=10)
+
+        # --- Nombre ---
+        ctk.CTkLabel(v, text="Nombre del producto", font=("Arial", 13, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=75)
+        e_n = ctk.CTkEntry(v, placeholder_text="Ej: COCA COLA 1.5L", width=300, height=40); e_n.pack(pady=(2, 12))
+
+        # --- Precio ---
+        ctk.CTkLabel(v, text="Precio de venta (máx. 6 dígitos)", font=("Arial", 13, "bold"), text_color="gray",
+                     anchor="w").pack(fill="x", padx=75)
+        e_p = ctk.CTkEntry(v, placeholder_text="Ej: $ 1.000", width=300, height=40,
+                           validate="key", validatecommand=(self._val_precio, "%P")); e_p.pack(pady=(2, 10))
+
+        # Formatea el precio como $ 1.000 mientras se escribe, sin romper la validación numérica interna
+        def formatear_precio(event=None):
+            crudo = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
+            if not crudo.isdigit():
+                return
+            visual = f"$ {int(crudo):,}".replace(",", ".")
+            e_p.delete(0, 'end')
+            e_p.insert(0, visual)
+        e_p.bind("<KeyRelease>", formatear_precio)
 
         def guardar():
-            c, n, p = e_c.get().strip(), e_n.get().strip().upper(), e_p.get().strip()
-            if c and n and p.isdigit():
-                conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
-                cur.execute("INSERT OR REPLACE INTO productos VALUES (?,?,?,?)", (c, n, int(p), datetime.now().strftime("%d/%m/%Y")))
-                conn.commit(); conn.close()
-                v.destroy(); self.ventana_abierta = None
-                self.entry_scan.insert(0, c); self.buscar_barras()
-                self.after(100, self._focus_scan)
+            c = e_c.get().strip()
+            n = e_n.get().strip().upper()
+            p = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
+            if not c or not n or not p.isdigit():
+                messagebox.showwarning("Datos incompletos", "Completa código, nombre y un precio válido.")
+                return
+            conn = sqlite3.connect(DB_PATH); cur = conn.cursor()
+            cur.execute("INSERT OR REPLACE INTO productos VALUES (?,?,?,?)", (c, n, int(p), datetime.now().strftime("%d/%m/%Y")))
+            conn.commit(); conn.close()
+            v.destroy(); self.ventana_abierta = None
+            self.entry_scan.insert(0, c); self.buscar_barras()
+            self.after(100, self._focus_scan)
 
         ctk.CTkButton(v, text="GUARDAR", fg_color="#2ecc71", height=50, width=300, command=guardar).pack(pady=20)
 
