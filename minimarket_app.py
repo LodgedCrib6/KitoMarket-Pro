@@ -109,7 +109,7 @@ class MinimarketApp(ctk.CTk):
 
         # --- Validadores ---
         self._val_num    = self.register(lambda s: s.isdigit() or s == "")
-        self._val_precio = self.register(lambda s: (s.isdigit() or s == "") and len(s) <= 9)
+        self._val_precio = self.register(lambda s: (s.isdigit() or s == "") and len(s) <= 6)
 
         # --- Arrancar centrado y adaptado a la pantalla actual ---
         sw = self.winfo_screenwidth()
@@ -427,15 +427,20 @@ class MinimarketApp(ctk.CTk):
                      anchor="w").pack(fill="x", padx=55)
         e_p = ctk.CTkEntry(v, width=340, height=45, font=("Arial", 16),
                            validate="key", validatecommand=(self._val_precio, "%P"))
-        e_p.insert(0, f"$ {res[1]:,}".replace(",", ".")); e_p.pack(pady=(2, 10))
+        e_p.configure(validate="none")
+        e_p.insert(0, f"$ {res[1]:,}".replace(",", "."))
+        e_p.configure(validate="key")
+        e_p.pack(pady=(2, 10))
 
         def formatear_precio_edicion(event=None):
             crudo = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
             if not crudo.isdigit():
                 return
             visual = f"$ {int(crudo):,}".replace(",", ".")
+            e_p.configure(validate="none")
             e_p.delete(0, 'end')
             e_p.insert(0, visual)
+            e_p.configure(validate="key")
         e_p.bind("<FocusOut>", formatear_precio_edicion)
 
         def guardar_edicion():
@@ -478,15 +483,18 @@ class MinimarketApp(ctk.CTk):
         e_p = ctk.CTkEntry(v, placeholder_text="Ej: 1000", width=300, height=40,
                            validate="key", validatecommand=(self._val_precio, "%P")); e_p.pack(pady=(2, 10))
 
-        # Formatea el precio como $ 1.000 solo al salir del campo (no en cada tecla,
-        # para no pelear con el validador de Tkinter — eso causaba el borrado en macOS)
+        # Formatea el precio como $ 1.000 solo al salir del campo.
+        # Se desactiva el validador un instante porque el texto formateado ($, espacio, puntos)
+        # no son dígitos puros y el validador los rechazaría, dejando el campo vacío.
         def formatear_precio(event=None):
             crudo = e_p.get().replace("$", "").replace(".", "").replace(" ", "").strip()
             if not crudo.isdigit():
                 return
             visual = f"$ {int(crudo):,}".replace(",", ".")
+            e_p.configure(validate="none")
             e_p.delete(0, 'end')
             e_p.insert(0, visual)
+            e_p.configure(validate="key")
         e_p.bind("<FocusOut>", formatear_precio)
 
         def guardar():
