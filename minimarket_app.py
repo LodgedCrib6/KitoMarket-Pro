@@ -109,7 +109,6 @@ class MinimarketApp(ctk.CTk):
 
         # --- Colores de fondo (normal vs. alerta roja) ---
         self._bg_normal = "#EBEBEB"
-        self._bg_alerta = "#EF9A8E"
         self.configure(fg_color=self._bg_normal)
 
         # --- Validadores ---
@@ -194,8 +193,8 @@ class MinimarketApp(ctk.CTk):
         self.btn_guardar_precio.pack(side="left", padx=(0, 10), pady=8)
 
         self.btn_confirmar_precio = ctk.CTkButton(
-            self.edit_frame, text="✅ CONFIRMAR PRECIO", fg_color="#2E7D32", hover_color="#1B5E20",
-            width=170, height=38, font=("Arial", 13, "bold"), corner_radius=8,
+            self.edit_frame, text="🎫", fg_color="#2E7D32", hover_color="#1B5E20",
+            width=42, height=38, font=("Arial", 15), corner_radius=8,
             command=self.confirmar_precio_actual
         )
         self.btn_confirmar_precio.pack(side="left", padx=(0, 10), pady=8)
@@ -364,21 +363,16 @@ class MinimarketApp(ctk.CTk):
             self._ocultar_btn_registrar_ahora()
         else:
             self.codigo_actual = cod
-            self.lbl_nombre.configure(text="ARTÍCULO NO ENCONTRADO", text_color="#B71C1C")
+            self.lbl_nombre.configure(text="ARTÍCULO NO ENCONTRADO", text_color="#e74c3c")
             self.lbl_precio.configure(text="---")
             self.lbl_codigo.configure(text=f"Código: {cod}")
             self.lbl_semaforo.configure(text="", fg_color="transparent")
             self.edit_frame.pack_forget()
             self.hist_frame.pack_forget()
-            self._set_fondo_alerta(True)
             # Botón para registrar el producto recién escaneado
             self._mostrar_btn_registrar_ahora(cod)
 
         self.entry_scan.delete(0, 'end')
-
-    def _set_fondo_alerta(self, activo):
-        """Tiñe toda la ventana de un rojo suave cuando el precio está muy desactualizado o el producto no existe."""
-        self.configure(fg_color=self._bg_alerta if activo else self._bg_normal)
 
     def _nivel_alerta_precio(self, fecha_str):
         """Devuelve 'rojo', 'amarillo' o 'verde' según la antigüedad del precio. Se usa también en la calculadora."""
@@ -399,23 +393,18 @@ class MinimarketApp(ctk.CTk):
     def gestionar_semaforo(self, fecha_str):
         if not fecha_str or fecha_str.strip() == "":
             self.lbl_semaforo.configure(text="🚨 SIN FECHA - REVISAR PRECIO", fg_color="#D32F2F", text_color="white")
-            self._set_fondo_alerta(True)
             return
         try:
             f_dt = datetime.strptime(fecha_str.split()[0], "%d/%m/%Y")
             dias = (datetime.now() - f_dt).days
             if dias < 90:
                 self.lbl_semaforo.configure(text=f"✅ PRECIO AL DÍA ({fecha_str})", fg_color="#2E7D32", text_color="white")
-                self._set_fondo_alerta(False)
             elif dias < 365:
                 self.lbl_semaforo.configure(text=f"⚠️ PRECIO ANTIGUO ({fecha_str})", fg_color="#FBC02D", text_color="black")
-                self._set_fondo_alerta(False)
             else:
                 self.lbl_semaforo.configure(text=f"🚨 VERIFICAR URGENTE ({fecha_str})", fg_color="#D32F2F", text_color="white")
-                self._set_fondo_alerta(True)
         except:
             self.lbl_semaforo.configure(text="🚨 ERROR FECHA", fg_color="#D32F2F", text_color="white")
-            self._set_fondo_alerta(True)
 
     def actualizar_historial(self, nom, pre):
         item = (nom[:15].upper(), f"${pre:,}".replace(",", "."))
